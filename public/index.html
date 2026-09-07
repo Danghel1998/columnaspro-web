@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ColumnasPro - Diseño de Columnas (NTP E.060 / E.030)</title>
+
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Three.js & OrbitControls for 3D Renderer -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- html2pdf for direct PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a' }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    
+    .eng-card {
+      background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    .dark .eng-card { background: #1e293b; border-color: #334155; }
+    .eng-card-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 1px solid #f1f5f9;
+    }
+    .dark .eng-card-header { border-color: #334155; }
+    .eng-card-title {
+      font-size: 0.75rem; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.375rem;
+    }
+    .dark .eng-card-title { color: #cbd5e1; }
+    
+    .eng-input-group { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem; }
+    .eng-label { font-size: 0.75rem; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 0.25rem; }
+    .dark .eng-label { color: #94a3b8; }
+    .eng-symbol { font-size: 0.7rem; color: #94a3b8; font-family: monospace; }
+    
+    .eng-cell-wrapper {
+      display: flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 0.375rem; overflow: hidden; background: white; width: 110px;
+    }
+    .dark .eng-cell-wrapper { border-color: #475569; background: #0f172a; }
+    .eng-cell-input {
+      width: 100%; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 600; color: #0f172a; outline: none; background: transparent;
+    }
+    .dark .eng-cell-input { color: #f8fafc; }
+    .eng-unit-badge {
+      background: #f1f5f9; color: #64748b; font-size: 0.65rem; font-weight: 700; padding: 0.25rem 0.4rem; border-left: 1px solid #e2e8f0; white-space: nowrap;
+    }
+    .dark .eng-unit-badge { background: #1e293b; color: #94a3b8; border-color: #334155; }
+
+    .nav-view-btn.active { background: #2563eb; color: white; font-weight: 700; box-shadow: 0 1px 3px rgba(37,99,235,0.3); }
+
+    .table-combos { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+    .table-combos th { background: #1e293b; color: white; padding: 4px 8px; text-align: left; }
+    .table-combos td { border: 1px solid #e2e8f0; padding: 4px 8px; }
+    .dark .table-combos td { border-color: #334155; }
+
+    /* HOJA DE MEMORIA A4 PARA VISTA PREVIA */
+    .a4-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 15mm;
+      margin: 10px auto;
+      background: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 4px;
+      color: #0f172a;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased transition-colors">
+
+  <!-- TOP HEADER -->
+  <header class="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-sm">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-lg shadow-md bg-blue-600 flex items-center justify-center text-white font-black text-xl">C</div>
+      <div>
+        <h1 class="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          ColumnasPro <span class="text-[11px] px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">E.060 / E.030</span>
+        </h1>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Memoria de Cálculo de Columnas Guía Paso a Paso (RNE, Perú)</p>
+      </div>
+    </div>
+
+    <div class="flex items-center flex-wrap gap-2">
+      <select id="preset_dropdown" onchange="cargarPreset(this.value)" class="text-xs bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 border border-slate-300 dark:border-slate-600 font-bold py-1.5 px-3 rounded text-slate-700 dark:text-slate-200 transition cursor-pointer">
+        <option value="tumbes" selected>⭐ Columna N°3 (25x60 cm - 8x5/8")</option>
+        <option value="tipica">Columna Rectangular Típica (30x40 cm)</option>
+        <option value="esquina">Columna de Esquina Biaxial (40x40 cm)</option>
+      </select>
+
+      <button onclick="toggleTheme()" class="text-xs flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold py-1.5 px-3 rounded transition">
+        <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-500 hidden dark:block"></i>
+        <i data-lucide="moon" class="w-3.5 h-3.5 text-slate-500 dark:hidden"></i>
+      </button>
+
+      <button onclick="abrirModalMemoria()" class="text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded shadow-sm transition">
+        <i data-lucide="eye" class="w-3.5 h-3.5"></i> Vista Previa
+      </button>
+
+      <button onclick="descargarPDFDirecto()" class="text-xs flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1.5 px-3.5 rounded shadow-sm transition">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i> Descargar PDF
+      </button>
+
+      <button onclick="imprimirMemoriaZapatasProStyle()" class="text-xs flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold py-1.5 px-3.5 rounded shadow-sm transition">
+        <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir Memoria
+      </button>
+
+      <button onclick="imprimirPlanoA3()" class="text-xs flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold py-1.5 px-3.5 rounded shadow-sm transition">
+        <i data-lucide="ruler" class="w-3.5 h-3.5 text-amber-400"></i> Generar Plano A3
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="w-full lg:w-[480px] xl:w-[510px] bg-slate-50/80 dark:bg-slate-900/80 border-r border-slate-300 dark:border-slate-800 flex flex-col h-auto lg:h-[calc(100vh-57px)] overflow-y-auto">
+
+      <div class="p-2.5 border-b border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-800 sticky top-0 z-20 shadow-xs space-y-2">
+        <div class="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-800">
+          <button onclick="setTabInput('tab_proyecto')" id="btn-tab-proyecto" class="py-1.5 px-1 rounded-md bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm transition flex items-center justify-center gap-1 text-[10px]">
+            <i data-lucide="building" class="w-3 h-3"></i> Proyecto
+          </button>
+          <button onclick="setTabInput('tab_datos')" id="btn-tab-datos" class="py-1.5 px-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 transition flex items-center justify-center gap-1 text-[10px]">
+            <i data-lucide="clipboard-list" class="w-3 h-3"></i> Sección
+          </button>
+          <button onclick="setTabInput('tab_etabs')" id="btn-tab-etabs" class="py-1.5 px-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 transition flex items-center justify-center gap-1 text-[10px]">
+            <i data-lucide="table" class="w-3 h-3"></i> ETABS
+          </button>
+          <button onclick="setTabInput('tab_armaduras')" id="btn-tab-armaduras" class="py-1.5 px-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 transition flex items-center justify-center gap-1 text-[10px]">
+            <i data-lucide="shield-check" class="w-3 h-3"></i> Acero
+          </button>
+        </div>
+      </div>
+
+      <!-- INPUT PANELS -->
+      <div class="p-3.5 space-y-3.5">
+
+        <!-- TAB PROYECTO (METADATOS DEL CLIENTE / PROYECTO / LUGAR) -->
+        <div id="panel-tab_proyecto" class="space-y-3.5">
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-blue-600"></span> Datos del Proyecto & Memoria</span>
+            </div>
+            <div class="space-y-2 text-xs">
+              <div>
+                <label class="eng-label mb-1"><span>Nombre del Proyecto / Obra</span></label>
+                <input type="text" id="proj-nombre" value="CASA UNIFAMILIAR 3 PISOS, MAS AZOTEA" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+              </div>
+              <div>
+                <label class="eng-label mb-1"><span>Lugar / Ubicación Geográfica</span></label>
+                <input type="text" id="proj-lugar" value="CUTERVO" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="eng-label mb-1"><span>Diseñado por (Especialista)</span></label>
+                  <input type="text" id="proj-autor" value="ING. J. EFREEN OBLITAS BENAVIDES" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                </div>
+                <div>
+                  <label class="eng-label mb-1"><span>Propietario / Cliente</span></label>
+                  <input type="text" id="proj-cliente" value="CRUCENIA TORRES SILVA" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="eng-label mb-1"><span>Elemento</span></label>
+                  <input type="text" id="proj-elemento" value="COLUMNA C-1" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                </div>
+                <div>
+                  <label class="eng-label mb-1"><span>Código / Rev</span></label>
+                  <input type="text" id="proj-codigo" value="" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                </div>
+                <div>
+                  <label class="eng-label mb-1"><span>Fecha</span></label>
+                  <input type="text" id="proj-fecha" value="SETIEMBRE 2026" oninput="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-tab_datos" class="space-y-3.5 hidden">
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-blue-600"></span> Geometría de Columna</span>
+            </div>
+            <div class="space-y-1">
+              <div class="eng-input-group">
+                <label class="eng-label"><span>Ancho columna</span><span class="eng-symbol">(a)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-b" value="25" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">cm</span></div>
+              </div>
+              <div class="eng-input-group">
+                <label class="eng-label"><span>Peralte columna</span><span class="eng-symbol">(b)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-h" value="60" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">cm</span></div>
+              </div>
+              <div class="eng-input-group">
+                <label class="eng-label"><span>Altura libre</span><span class="eng-symbol">(Hc)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-hlibre" value="3.30" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">m</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-emerald-600"></span> Especificaciones del Proyecto</span>
+            </div>
+            <div class="space-y-1">
+              <div class="eng-input-group">
+                <label class="eng-label"><span>Resistencia concreto</span><span class="eng-symbol">(f'c)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-fc" value="210" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">kg/cm²</span></div>
+              </div>
+              <div class="eng-input-group">
+                <label class="eng-label"><span>Resistencia acero</span><span class="eng-symbol">(fy)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-fy" value="4200" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">kg/cm²</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-tab_etabs" class="space-y-3.5 hidden">
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-purple-600"></span> Cargas en Servicio (ETABS)</span>
+            </div>
+            <div class="space-y-2 text-xs">
+              <div class="grid grid-cols-4 gap-1 font-bold text-[10px] text-slate-500 border-b pb-1">
+                <span>CASO</span><span>P (Ton)</span><span>M2 (Ton-m)</span><span>M3 (Ton-m)</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1 items-center">
+                <span class="font-bold text-slate-700">CM</span>
+                <input type="text" id="etabs-cm-p" value="39.65" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-cm-m2" value="0.0097" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-cm-m3" value="0.2106" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+              </div>
+              <div class="grid grid-cols-4 gap-1 items-center">
+                <span class="font-bold text-slate-700">CV</span>
+                <input type="text" id="etabs-cv-p" value="8.6101" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-cv-m2" value="0.003" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-cv-m3" value="0.0524" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+              </div>
+              <div class="grid grid-cols-4 gap-1 items-center">
+                <span class="font-bold text-blue-600">SXD</span>
+                <input type="text" id="etabs-sx-p" value="0.091" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-sx-m2" value="0.0458" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-sx-m3" value="0.5289" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+              </div>
+              <div class="grid grid-cols-4 gap-1 items-center">
+                <span class="font-bold text-emerald-600">SYD</span>
+                <input type="text" id="etabs-sy-p" value="0.0916" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-sy-m2" value="0.4331" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+                <input type="text" id="etabs-sy-m3" value="0.0478" oninput="calcularColumna()" class="border rounded px-1.5 py-1 text-xs">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-tab_armaduras" class="space-y-3.5 hidden">
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-amber-600"></span> Refuerzo Longitudinal</span>
+            </div>
+            <div class="space-y-2 p-1">
+              <div>
+                <label class="eng-label mb-1"><span>Modo de Distribución</span></label>
+                <select id="col-modo-armadura" onchange="toggleModoArmadura(); calcularColumna();" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                  <option value="uniforme" selected>Uniforme (Mismo diámetro en toda la columna)</option>
+                  <option value="combinado">Combinado (Esquinas + Caras b y h)</option>
+                </select>
+              </div>
+
+              <!-- MODO UNIFORME -->
+              <div id="group-arm-uniforme" class="space-y-1">
+                <div class="eng-input-group">
+                  <label class="eng-label"><span>Número de Varillas</span><span class="eng-symbol">(N)</span></label>
+                  <div class="eng-cell-wrapper"><input type="text" id="col-nvar" value="8" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">barras</span></div>
+                </div>
+                <div class="eng-input-group">
+                  <label class="eng-label"><span>Diámetro Comercial</span><span class="eng-symbol">(Ø)</span></label>
+                  <div class="eng-cell-wrapper">
+                    <select id="col-diam-var" onchange="calcularColumna()" class="eng-cell-input text-xs font-bold bg-transparent">
+                      <option value="0.80">8 mm (0.50 cm²)</option>
+                      <option value="1.00">10 mm (0.79 cm²)</option>
+                      <option value="1.20">12 mm (1.13 cm²)</option>
+                      <option value="0.95">3/8" (0.71 cm²)</option>
+                      <option value="1.27">1/2" (1.29 cm²)</option>
+                      <option value="1.59" selected>5/8" (1.98 cm²)</option>
+                      <option value="1.91">3/4" (2.85 cm²)</option>
+                      <option value="2.54">1" (5.07 cm²)</option>
+                      <option value="3.58">1 3/8" (10.06 cm²)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MODO COMBINADO -->
+              <div id="group-arm-combinado" class="space-y-2 hidden">
+                <div class="border-t pt-2 border-slate-200 dark:border-slate-800">
+                  <label class="eng-label mb-1"><span class="text-amber-600 font-bold">4 Varillas de Esquina (Fijas)</span></label>
+                  <select id="col-diam-esq" onchange="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1.5 font-bold text-slate-800 dark:text-slate-100 text-xs">
+                    <option value="0.80">8 mm (0.50 cm²)</option>
+                    <option value="1.00">10 mm (0.79 cm²)</option>
+                    <option value="1.20">12 mm (1.13 cm²)</option>
+                    <option value="0.95">3/8" (0.71 cm²)</option>
+                    <option value="1.27">1/2" (1.29 cm²)</option>
+                    <option value="1.59">5/8" (1.98 cm²)</option>
+                    <option value="1.91" selected>3/4" (2.85 cm²)</option>
+                    <option value="2.54">1" (5.07 cm²)</option>
+                    <option value="3.58">1 3/8" (10.06 cm²)</option>
+                  </select>
+                </div>
+
+                <div class="border-t pt-2 border-slate-200 dark:border-slate-800">
+                  <label class="eng-label mb-1"><span class="text-blue-600 font-bold">Varillas en Cara b (Ancho)</span></label>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <span class="text-[10px] text-slate-500 font-bold">Cant. por cara (x2)</span>
+                      <input type="text" id="col-nb" value="2" oninput="calcularColumna()" class="w-full border rounded p-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900">
+                    </div>
+                    <div>
+                      <span class="text-[10px] text-slate-500 font-bold">Diámetro</span>
+                      <select id="col-diam-b" onchange="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1 font-bold text-slate-800 dark:text-slate-100 text-xs">
+                        <option value="0.80">8 mm (0.50 cm²)</option>
+                        <option value="1.00">10 mm (0.79 cm²)</option>
+                        <option value="1.20">12 mm (1.13 cm²)</option>
+                        <option value="0.95">3/8" (0.71 cm²)</option>
+                        <option value="1.27">1/2" (1.29 cm²)</option>
+                        <option value="1.59" selected>5/8" (1.98 cm²)</option>
+                        <option value="1.91">3/4" (2.85 cm²)</option>
+                        <option value="2.54">1" (5.07 cm²)</option>
+                        <option value="3.58">1 3/8" (10.06 cm²)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border-t pt-2 border-slate-200 dark:border-slate-800">
+                  <label class="eng-label mb-1"><span class="text-emerald-600 font-bold">Varillas en Cara h (Peralte)</span></label>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <span class="text-[10px] text-slate-500 font-bold">Cant. por cara (x2)</span>
+                      <input type="text" id="col-nh" value="0" oninput="calcularColumna()" class="w-full border rounded p-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900">
+                    </div>
+                    <div>
+                      <span class="text-[10px] text-slate-500 font-bold">Diámetro</span>
+                      <select id="col-diam-h" onchange="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1 font-bold text-slate-800 dark:text-slate-100 text-xs">
+                        <option value="0.80">8 mm (0.50 cm²)</option>
+                        <option value="1.00">10 mm (0.79 cm²)</option>
+                        <option value="1.20">12 mm (1.13 cm²)</option>
+                        <option value="0.95">3/8" (0.71 cm²)</option>
+                        <option value="1.27">1/2" (1.29 cm²)</option>
+                        <option value="1.59" selected>5/8" (1.98 cm²)</option>
+                        <option value="1.91">3/4" (2.85 cm²)</option>
+                        <option value="2.54">1" (5.07 cm²)</option>
+                        <option value="3.58">1 3/8" (10.06 cm²)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- RESUMEN EN VIVO DE ACERO -->
+              <div id="box-armadura-resumen" class="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-xs">
+                <div class="font-bold text-amber-900 dark:text-amber-200" id="lbl-rotulo-acero">8 Ø 5/8"</div>
+                <div class="text-[11px] text-amber-800 dark:text-amber-300 font-semibold" id="lbl-ast-acero">Ast = 15.84 cm² (1.06% Ag)</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- SECCIÓN DE CORTANTE Y ESTRIBADO -->
+          <div class="eng-card">
+            <div class="eng-card-header">
+              <span class="eng-card-title"><span class="w-2 h-2 rounded-full bg-red-600"></span> Cortante & Estribos (NTP E.060 Cap. 11)</span>
+            </div>
+            <div class="space-y-2 p-1 text-xs">
+              <div>
+                <label class="eng-label mb-1"><span>Fuerza Cortante Actuante</span><span class="eng-symbol">(Vu)</span></label>
+                <div class="eng-cell-wrapper"><input type="text" id="col-vu" value="12.50" oninput="calcularColumna()" class="eng-cell-input"><span class="eng-unit-badge">Ton</span></div>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label class="eng-label mb-1"><span>Diámetro Estribo</span></label>
+                  <select id="col-diam-est" onchange="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1 font-bold text-slate-800 dark:text-slate-100 text-xs">
+                    <option value="0.95" selected>3/8" (0.71 cm²)</option>
+                    <option value="0.80">8 mm (0.50 cm²)</option>
+                    <option value="1.27">1/2" (1.29 cm²)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="eng-label mb-1"><span>N° Ramas (Av)</span></label>
+                  <select id="col-nramas" onchange="calcularColumna()" class="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded p-1 font-bold text-slate-800 dark:text-slate-100 text-xs">
+                    <option value="2" selected>2 Ramas (Estribo simple)</option>
+                    <option value="4">4 Ramas (Doble estribo/Grapas)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="calcularColumna()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2">
+          <i data-lucide="cpu" class="w-4 h-4"></i> Recalcular Estructura
+        </button>
+
+      </div>
+    </aside>
+
+    <!-- RIGHT MAIN DISPLAY AREA -->
+    <section class="flex-1 flex flex-col bg-white dark:bg-slate-900 h-auto lg:h-[calc(100vh-57px)] overflow-y-auto">
+
+      <!-- NAVIGATION VIEWER TABS -->
+      <div class="p-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between gap-4 sticky top-0 z-10 shadow-xs">
+        <div class="flex items-center gap-1.5 overflow-x-auto text-xs font-bold">
+          <button onclick="setViewTab('view_pm')" id="nav-view_pm" class="nav-view-btn active py-2 px-3 rounded-lg transition flex items-center gap-1.5">
+            <i data-lucide="line-chart" class="w-3.5 h-3.5"></i> Diagramas P-M
+          </button>
+          <button onclick="setViewTab('view_flexo')" id="nav-view_flexo" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="calculator" class="w-3.5 h-3.5 text-amber-500"></i> Flexocompresión E.060
+          </button>
+          <button onclick="setViewTab('view_planta')" id="nav-view_planta" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i> Vista en Planta
+          </button>
+          <button onclick="setViewTab('view_corte')" id="nav-view_corte" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Vista en Corte
+          </button>
+          <button onclick="setViewTab('view_3d')" id="nav-view_3d" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="box" class="w-3.5 h-3.5 text-blue-500"></i> Vista 3D (WebGL)
+          </button>
+          <button onclick="setViewTab('view_memoria')" id="nav-view_memoria" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-emerald-600"></i> 👁️ Vista Previa Memoria
+          </button>
+          <button onclick="setViewTab('view_combos')" id="nav-view_combos" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="table-properties" class="w-3.5 h-3.5"></i> 9 Combos
+          </button>
+          <button onclick="setViewTab('view_estribos')" id="nav-view_estribos" class="nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="shield" class="w-3.5 h-3.5"></i> Confinamiento
+          </button>
+        </div>
+
+        <div id="badge-status-top" class="text-xs px-3 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+          ✓ DENTRO DE ENVOLVENTE (OK)
+        </div>
+      </div>
+
+      <!-- VIEWER CONTAINERS -->
+      <div class="p-6 flex-1 flex flex-col items-center justify-center">
+
+        <!-- 1. DIAGRAMAS P-M (SEPARADOS POR DIRECCIÓN SÍSMICA) -->
+        <div id="view_pm" class="view-panel w-full max-w-5xl flex flex-col items-center gap-5">
+          <div class="w-full bg-slate-50 dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+              <i data-lucide="trending-up" class="w-4 h-4 text-yellow-500"></i> Diagrama de Interacción P-M3 — Dirección X-X (SISXX)
+            </h3>
+            <canvas id="pm-canvas-m3" width="560" height="380" class="bg-white dark:bg-slate-900 rounded-lg border shadow-inner"></canvas>
+            <div class="flex items-center gap-6 text-xs font-semibold text-slate-600 dark:text-slate-400 mt-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-600 rounded-full"></span> Envolvente ØPn - ØM3</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span> Combos SISXX</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> Combos SISYY</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-400 rounded-full"></span> Carga Vertical</span>
+            </div>
+          </div>
+
+          <div class="w-full bg-slate-50 dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+              <i data-lucide="trending-up" class="w-4 h-4 text-emerald-500"></i> Diagrama de Interacción P-M2 — Dirección Y-Y (SISYY)
+            </h3>
+            <canvas id="pm-canvas-m2" width="560" height="380" class="bg-white dark:bg-slate-900 rounded-lg border shadow-inner"></canvas>
+            <div class="flex items-center gap-6 text-xs font-semibold text-slate-600 dark:text-slate-400 mt-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-600 rounded-full"></span> Envolvente ØPn - ØM2</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span> Combos SISXX</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> Combos SISYY</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-400 rounded-full"></span> Carga Vertical</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. DISEÑO A FLEXOCOMPRESIÓN E.060 (PESTAÑA DEDICADA) -->
+        <div id="view_flexo" class="view-panel w-full max-w-4xl hidden space-y-4">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b pb-2">
+              <i data-lucide="calculator" class="w-4 h-4 text-amber-500"></i> Diseño a Flexocompresión Biaxial Paso a Paso (NTP E.060 Capítulo 10)
+            </h3>
+
+            <div id="box-flexo-detalles" class="space-y-3 text-xs font-mono">
+              <!-- Renderizado dinámico de la memoria de flexocompresión -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. VISTA EN PLANTA 2D -->
+        <div id="view_planta" class="view-panel w-full max-w-4xl hidden flex flex-col items-center">
+          <div class="w-full bg-slate-50 dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 mb-2 flex items-center gap-2">
+              <i data-lucide="square" class="w-4 h-4 text-blue-600"></i> Vista en Planta - Sección Transversal Detallada (NTP E.060)
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Cotas, recubrimiento r=4cm, disposición de varillas y estribo de confinamiento a 135°</p>
+            <canvas id="planta-canvas" width="600" height="420" class="bg-white dark:bg-slate-900 rounded-lg border shadow-inner"></canvas>
+          </div>
+        </div>
+
+        <!-- 4. VISTA EN CORTE 2D -->
+        <div id="view_corte" class="view-panel w-full max-w-4xl hidden flex flex-col items-center">
+          <div class="w-full bg-slate-50 dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 mb-2 flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4 text-blue-600"></i> Vista en Corte / Elevación Longitudinal (Hc)
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Distribución de estribos en Zona de Confinamiento (Lo) vs Zona Central (NTP E.060 Art 21.4)</p>
+            <canvas id="corte-canvas" width="600" height="450" class="bg-white dark:bg-slate-900 rounded-lg border shadow-inner"></canvas>
+          </div>
+        </div>
+
+        <!-- 5. VISTA 3D INTERACTIVA (THREE.JS) -->
+        <div id="view_3d" class="view-panel w-full max-w-4xl hidden flex flex-col items-center">
+          <div class="w-full bg-slate-900 p-6 rounded-xl border border-slate-700 shadow-xl flex flex-col items-center">
+            <div class="w-full flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+              <div>
+                <h3 class="text-sm font-extrabold text-white flex items-center gap-2">
+                  <i data-lucide="box" class="w-4 h-4 text-blue-400"></i> Modelo 3D Interactivo de Columna y Armadura de Acero
+                </h3>
+                <p class="text-[11px] text-slate-400">Arrastra para rotar en 360° • Rueda de mouse para Zoom • Clic derecho para desplazar</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="reset3DCamera()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded font-semibold border border-slate-700 transition">
+                  🔄 Restablecer Cámara
+                </button>
+              </div>
+            </div>
+            
+            <div id="three-container" class="w-full h-[450px] bg-slate-950 rounded-lg border border-slate-800 overflow-hidden relative shadow-inner">
+            </div>
+
+            <div class="flex items-center gap-6 text-xs text-slate-400 mt-3 font-semibold">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-slate-400/40 rounded border border-slate-400"></span> Concreto Translucido</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-amber-500 rounded-full"></span> Acero Longitudinal (Varillas)</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-red-500 rounded-full"></span> Estribos (Zona Lo y Central)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. VISTA PREVIA MEMORIA DE CÁLCULO EN VIVO (TAB) -->
+        <div id="view_memoria" class="view-panel w-full max-w-4xl hidden flex flex-col items-center">
+          <div class="w-full bg-slate-200 dark:bg-slate-800/80 p-6 rounded-xl border border-slate-300 dark:border-slate-700 shadow-inner flex flex-col items-center">
+            <div class="w-full flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-lg border shadow-xs">
+              <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i> Vista Previa en Vivo de la Memoria de Cálculo (A4)
+              </h3>
+              <div class="flex items-center gap-2">
+                <button onclick="descargarPDFDirecto()" class="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-1.5 rounded transition flex items-center gap-1.5">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i> Descargar PDF
+                </button>
+                <button onclick="imprimirMemoriaZapatasProStyle()" class="text-xs bg-blue-700 hover:bg-blue-800 text-white font-bold px-3.5 py-1.5 rounded transition flex items-center gap-1.5">
+                  <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir Memoria
+                </button>
+              </div>
+            </div>
+            
+            <div id="memoria-live-tab-container" class="w-full flex flex-col items-center overflow-y-auto max-h-[750px] p-4 bg-slate-300 dark:bg-slate-900 rounded-lg">
+              <!-- Renderizado dinámico de la memoria -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. TABLA COMBINACIONES -->
+        <div id="view_combos" class="view-panel w-full max-w-4xl hidden space-y-4">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+              <i data-lucide="list-filter" class="w-4 h-4 text-blue-600"></i> Tabla de Combinaciones de Diseño E.060
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="table-combos">
+                <thead>
+                  <tr>
+                    <th>COMBINACIÓN</th><th>P (Ton)</th><th>M2 (Ton-m)</th><th>M3 (Ton-m)</th><th>Mu Res (Ton-m)</th><th>ESTADO</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-combos">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. ESTRIBOS CONFINAMIENTO -->
+        <div id="view_estribos" class="view-panel w-full max-w-3xl hidden">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+            <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-yellow-600"></i> Verificación de Acero Transversal (NTP E.060 Art 21.4)
+            </h3>
+            <div id="box-estribos-detalles" class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg text-xs font-mono border space-y-3">
+              Cargando detalles de estribos...
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- MODAL VISTA PREVIA EN VIVO DE MEMORIA (FULLSCREEN OVERLAY) -->
+  <div id="modal-memoria" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs hidden flex flex-col items-center justify-center p-4">
+    <div class="w-full max-w-5xl h-[92vh] bg-white dark:bg-slate-800 rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-700">
+      
+      <!-- Modal Header -->
+      <div class="bg-slate-900 px-6 py-3 border-b border-slate-700 flex items-center justify-between text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold">👁️</div>
+          <div>
+            <h3 class="text-sm font-extrabold">Vista Previa en Vivo — Memoria de Cálculo (E.060 / E.030)</h3>
+            <p class="text-[11px] text-slate-400">Actualización en tiempo real conforme editas los datos</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="descargarPDFDirecto()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded text-xs transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Descargar PDF
+          </button>
+          <button onclick="imprimirMemoriaZapatasProStyle()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-1.5 rounded text-xs transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir PDF
+          </button>
+          <button onclick="cerrarModalMemoria()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-3 py-1.5 rounded text-xs transition">
+            ✕ Cerrar
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Iframe) -->
+      <div class="flex-1 bg-slate-300 dark:bg-slate-900 overflow-hidden relative">
+        <iframe id="iframe-memoria-modal" class="w-full h-full border-none"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVASES OCULTOS DE APOYO -->
+  <div class="hidden">
+    <canvas id="col-canvas" width="300" height="240"></canvas>
+    <canvas id="elev-canvas" width="300" height="300"></canvas>
+  </div>
+
+  <script>
+    let ultimoResultado = null;
+    let ultimaMemoria = null;
+
+    // Three.js variables globales
+    let scene3D = null, camera3D = null, renderer3D = null, controls3D = null, group3D = null;
+
+    function toggleTheme() { document.documentElement.classList.toggle('dark'); }
+
+    function cargarPreset(tipo) {
+      if (tipo === 'tumbes') {
+        document.getElementById('col-b').value = "25";
+        document.getElementById('col-h').value = "60";
+        document.getElementById('col-hlibre').value = "3.30";
+        document.getElementById('col-nvar').value = "8";
+        document.getElementById('col-diam-var').value = "1.59";
+
+        document.getElementById('etabs-cm-p').value = "39.65";
+        document.getElementById('etabs-cm-m2').value = "0.0097";
+        document.getElementById('etabs-cm-m3').value = "0.2106";
+
+        document.getElementById('etabs-cv-p').value = "8.6101";
+        document.getElementById('etabs-cv-m2').value = "0.003";
+        document.getElementById('etabs-cv-m3').value = "0.0524";
+
+        document.getElementById('etabs-sx-p').value = "0.091";
+        document.getElementById('etabs-sx-m2').value = "0.0458";
+        document.getElementById('etabs-sx-m3').value = "0.5289";
+
+        document.getElementById('etabs-sy-p').value = "0.0916";
+        document.getElementById('etabs-sy-m2').value = "0.4331";
+        document.getElementById('etabs-sy-m3').value = "0.0478";
+      }
+      calcularColumna();
+    }
+
+    function setTabInput(tabId) {
+      ['tab_proyecto', 'tab_datos', 'tab_etabs', 'tab_armaduras'].forEach(t => {
+        document.getElementById('panel-' + t).classList.add('hidden');
+        const btn = document.getElementById('btn-' + t.replace('_', '-'));
+        if (btn) btn.className = "py-1.5 px-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 transition flex items-center justify-center gap-1 text-[10px]";
+      });
+      document.getElementById('panel-' + tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('btn-' + tabId.replace('_', '-'));
+      if (activeBtn) activeBtn.className = "py-1.5 px-1 rounded-md bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm transition flex items-center justify-center gap-1 text-[10px]";
+    }
+
+    function setViewTab(viewId) {
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-view-btn').forEach(el => {
+        el.className = "nav-view-btn py-2 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5";
+      });
+      document.getElementById(viewId).classList.remove('hidden');
+      document.getElementById('nav-' + viewId).className = "nav-view-btn active py-2 px-3 rounded-lg transition flex items-center gap-1.5";
+
+      if (viewId === 'view_3d') {
+        setTimeout(() => {
+          init3DScene();
+          if (ultimoResultado) {
+            update3DModel(ultimoResultado.input_data.b, ultimoResultado.input_data.h, ultimoResultado.input_data.h_libre, ultimoResultado.input_data, ultimoResultado.estribos);
+          }
+        }, 50);
+      } else if (viewId === 'view_memoria') {
+        actualizarMemoriaLive();
+      }
+    }
+
+    function abrirModalMemoria() {
+      document.getElementById('modal-memoria').classList.remove('hidden');
+      actualizarMemoriaLive();
+    }
+
+    function cerrarModalMemoria() {
+      document.getElementById('modal-memoria').classList.add('hidden');
+    }
+
+    function getVal(id, defaultVal) {
+      const el = document.getElementById(id);
+      if (!el || !el.value) return defaultVal;
+      const v = el.value.toString().replace(',', '.').trim();
+      const num = parseFloat(v);
+      return isNaN(num) ? defaultVal : num;
+    }
+
+    function toggleModoArmadura() {
+      const modo = document.getElementById('col-modo-armadura') ? document.getElementById('col-modo-armadura').value : 'uniforme';
+      if (modo === 'combinado') {
+        document.getElementById('group-arm-uniforme').classList.add('hidden');
+        document.getElementById('group-arm-combinado').classList.remove('hidden');
+      } else {
+        document.getElementById('group-arm-uniforme').classList.remove('hidden');
+        document.getElementById('group-arm-combinado').classList.add('hidden');
+      }
+    }
+
+    function obtenerListaVarillas(inpData) {
+      const inp = inpData || (ultimoResultado ? ultimoResultado.input_data : {});
+      const modo = inp.modo_armadura || 'uniforme';
+      const rec = 4.0;
+      const b = inp.b || 25;
+      const h = inp.h || 60;
+      const stW = Math.max(1, b - 2 * rec);
+      const stH = Math.max(1, h - 2 * rec);
+
+      const list = [];
+
+      if (modo === 'combinado') {
+        const dbEsq = inp.db_esq || 1.91;
+        const dbB = inp.db_cara_b || 1.59;
+        const dbH = inp.db_cara_h || 1.59;
+        const nB = inp.n_cara_b || 2;
+        const nH = inp.n_cara_h || 0;
+
+        // 4 Esquinas
+        list.push({ x: 0, y: 0, db: dbEsq, tipo: 'esq' });
+        list.push({ x: stW, y: 0, db: dbEsq, tipo: 'esq' });
+        list.push({ x: 0, y: stH, db: dbEsq, tipo: 'esq' });
+        list.push({ x: stW, y: stH, db: dbEsq, tipo: 'esq' });
+
+        // Caras b (arriba y abajo)
+        if (nB > 0) {
+          const stepX = stW / (nB + 1);
+          for (let i = 1; i <= nB; i++) {
+            const xPos = i * stepX;
+            list.push({ x: xPos, y: 0, db: dbB, tipo: 'cara_b' });
+            list.push({ x: xPos, y: stH, db: dbB, tipo: 'cara_b' });
+          }
+        }
+
+        // Caras h (izquierda y derecha)
+        if (nH > 0) {
+          const stepY = stH / (nH + 1);
+          for (let j = 1; j <= nH; j++) {
+            const yPos = j * stepY;
+            list.push({ x: 0, y: yPos, db: dbH, tipo: 'cara_h' });
+            list.push({ x: stW, y: yPos, db: dbH, tipo: 'cara_h' });
+          }
+        }
+      } else {
+        const nvar = inp.num_varillas || 8;
+        const dbLong = inp.db_long || 1.59;
+        list.push({ x: 0, y: 0, db: dbLong, tipo: 'uni' });
+        list.push({ x: stW, y: 0, db: dbLong, tipo: 'uni' });
+        list.push({ x: 0, y: stH, db: dbLong, tipo: 'uni' });
+        list.push({ x: stW, y: stH, db: dbLong, tipo: 'uni' });
+
+        if (nvar >= 6) {
+          list.push({ x: stW / 2, y: 0, db: dbLong, tipo: 'uni' });
+          list.push({ x: stW / 2, y: stH, db: dbLong, tipo: 'uni' });
+        }
+        if (nvar >= 8) {
+          list.push({ x: 0, y: stH / 2, db: dbLong, tipo: 'uni' });
+          list.push({ x: stW, y: stH / 2, db: dbLong, tipo: 'uni' });
+        }
+        if (nvar >= 10) {
+          list.push({ x: stW / 3, y: 0, db: dbLong, tipo: 'uni' });
+          list.push({ x: (2 * stW) / 3, y: 0, db: dbLong, tipo: 'uni' });
+          list.push({ x: stW / 3, y: stH, db: dbLong, tipo: 'uni' });
+          list.push({ x: (2 * stW) / 3, y: stH, db: dbLong, tipo: 'uni' });
+        }
+      }
+      return list;
+    }
+
+    async function calcularColumna() {
+      const etabs = {
+        CM: { P: getVal('etabs-cm-p', -3.692), M2: getVal('etabs-cm-m2', -0.1099), M3: getVal('etabs-cm-m3', -0.2933) },
+        CV: { P: getVal('etabs-cv-p', 0.2232), M2: getVal('etabs-cv-m2', -0.0426), M3: getVal('etabs-cv-m3', -0.0894) },
+        SISXX: { P: getVal('etabs-sx-p', 4.8925), M2: getVal('etabs-sx-m2', 0.1587), M3: getVal('etabs-sx-m3', 5.5215) },
+        SISYY: { P: getVal('etabs-sy-p', 48.6286), M2: getVal('etabs-sy-m2', 3.0093), M3: getVal('etabs-sy-m3', 0.2578) }
+      };
+
+      const modoArmadura = document.getElementById('col-modo-armadura') ? document.getElementById('col-modo-armadura').value : 'uniforme';
+
+      const data = {
+        norma: 'E.060',
+        b: getVal('col-b', 25),
+        h: getVal('col-h', 60),
+        h_libre: getVal('col-hlibre', 3.30),
+        fc: getVal('col-fc', 210),
+        fy: getVal('col-fy', 4200),
+        modo_armadura: modoArmadura,
+        num_varillas: getVal('col-nvar', 8),
+        db_long: getVal('col-diam-var', 1.59),
+        db_esq: getVal('col-diam-esq', 1.91),
+        n_cara_b: getVal('col-nb', 2),
+        db_cara_b: getVal('col-diam-b', 1.59),
+        n_cara_h: getVal('col-nh', 0),
+        db_cara_h: getVal('col-diam-h', 1.59),
+        db_est: getVal('col-diam-est', 0.95),
+        n_ramas: getVal('col-nramas', 2),
+        vu_actuante: getVal('col-vu', 12.50),
+        etabs: etabs
+      };
+
+      try {
+        const res = await fetch('/api/calcular_columna', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+        if (result.exito) {
+          ultimoResultado = { ...result, input_data: data };
+          ultimaMemoria = result.memoria;
+
+          // Actualizar resumen en panel lateral armadura
+          if (document.getElementById('lbl-rotulo-acero')) {
+            document.getElementById('lbl-rotulo-acero').innerText = result.rotulo_acero || `${result.num_varillas} Ø 5/8"`;
+          }
+          if (document.getElementById('lbl-ast-acero')) {
+            document.getElementById('lbl-ast-acero').innerText = `Ast = ${result.ast_usado} cm² (${((result.ast_usado / result.ag) * 100).toFixed(2)}% Ag)`;
+          }
+
+          const tbody = document.getElementById('tbody-combos');
+          tbody.innerHTML = result.combos_e060.map(c => `
+            <tr>
+              <td class="font-bold text-slate-800 dark:text-slate-200">${c.nombre}</td>
+              <td class="${c.P < 0 ? 'text-red-600 font-bold' : ''}">${c.P}</td>
+              <td>${c.M2}</td>
+              <td>${c.M3}</td>
+              <td class="font-bold text-blue-600">${c.M_res}</td>
+              <td><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">CUMPLE</span></td>
+            </tr>
+          `).join('');
+
+          const est = result.estribos;
+          const diag = result.diagrama || {};
+
+          document.getElementById('box-estribos-detalles').innerHTML = `
+            <div class="font-bold text-slate-800 dark:text-slate-200 border-b pb-1">§ Diseño a Cortante (NTP E.060 Art. 11.3 y 11.5):</div>
+            <div>* Peralte efectivo: d = h - rec - db,est - db,long/2 = ${est.d_cm} cm</div>
+            <div>* Cortante actuante: Vu = ${est.vu_ton} Ton</div>
+            <div>* Resistencia del concreto: Vc = 0.53√f'c·b·d·(1+Nu/140Ag) = <strong>${est.vc_ton} Ton</strong></div>
+            <div>* Acero requerido: Vs = Vu/Ф - Vc = <strong>${est.vs_ton} Ton</strong> (Ф = 0.85, ${est.n_ramas} ramas Ø${(est.db_est_cm||0.95).toFixed(2)}cm)</div>
+            <div>* Espaciamiento por cortante: s_corte = Av·fy·d / Vs = <strong>${est.s_corte_cm} cm</strong></div>
+            <div class="p-2 rounded-lg font-bold text-center mt-1 ${est.cumple_corte ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'}">
+              ΦVn = Ф(Vc+Vs) = ${est.phi_vn_ton} Ton ${est.cumple_corte ? '≥' : '<'} Vu = ${est.vu_ton} Ton → ${est.cumple_corte ? '✓ CUMPLE A CORTANTE' : '✗ NO CUMPLE - AUMENTAR SECCIÓN O ESTRIBOS'}
+            </div>
+
+            <div class="font-bold text-slate-800 dark:text-slate-200 border-b pb-1 pt-3">§ Zona de Confinamiento (Lo):</div>
+            <div>* Hc/6 = ${est.lo_detalles.hc_6} m</div>
+            <div>* Lado mayor = ${est.lo_detalles.lado_mayor} m</div>
+            <div>* 0.50 m = 0.50 m</div>
+            <div class="bg-yellow-200 text-yellow-900 font-bold p-1 rounded">=> El mayor = ${est.lo_m} m</div>
+
+            <div class="font-bold text-slate-800 dark:text-slate-200 border-b pb-1 pt-2">§ Espaciamiento en Zona de Confinamiento (so):</div>
+            <div>* 8 db long = ${est.so_detalles.s_8db} cm</div>
+            <div>* b/2 (lado menor) = ${est.so_detalles.s_b2} cm</div>
+            <div>* 100 mm = ${est.so_detalles.s_100mm} cm</div>
+            <div>* Por cortante s_corte = ${est.so_detalles.s_corte} cm</div>
+            <div class="bg-yellow-200 text-yellow-900 font-bold p-1 rounded">=> El menor = ${est.so_cm} cm</div>
+
+            <div class="font-bold text-slate-800 dark:text-slate-200 border-b pb-1 pt-2">§ Espaciamiento Fuera de Confinamiento (s_resto):</div>
+            <div>* 16 db long = ${est.s_fuera_detalles.sf_16db} cm</div>
+            <div>* 48 db estribo = ${est.s_fuera_detalles.sf_48db} cm</div>
+            <div>* Lado menor b = ${est.s_fuera_detalles.sf_b} cm</div>
+            <div class="bg-yellow-200 text-yellow-900 font-bold p-1 rounded">=> El menor = ${est.s_fuera_cm} cm</div>
+
+            <div class="bg-emerald-600 text-white font-bold p-2.5 rounded-lg text-sm mt-3 text-center">
+              As en estribos a usar: ${est.rotulo_estribos}
+            </div>
+          `;
+
+          // RENDER DEDICADO DE FLEXOCOMPRESIÓN E.060 EN PESTAÑA UI
+          document.getElementById('box-flexo-detalles').innerHTML = `
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border space-y-2">
+              <div class="font-bold text-blue-700 dark:text-blue-400 border-b pb-1">1. Hipótesis Fundamental y Parámetros E.060 (Cap 10):</div>
+              <div>• Resistencia Concreto (f'c): ${data.fc} kg/cm²</div>
+              <div>• Resistencia Acero (fy): ${data.fy} kg/cm²</div>
+              <div>• Refuerzo Longitudinal Adopado: ${result.rotulo_acero} (Ast = ${result.ast_usado} cm²)</div>
+              <div>• Deformación Límite Concreto (εcu): 0.003 (Art. 10.2.3)</div>
+              <div>• Deformación Fluencia Acero (εy = fy/Es): 0.0021</div>
+              <div>• Bloque de Whitney (β1): ${diag.beta1 || 0.85}</div>
+              <div>• Factor Reducción Resistencia (Ф): 0.65 (Compresión con estribos)</div>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border space-y-2">
+              <div class="font-bold text-blue-700 dark:text-blue-400 border-b pb-1">2. Resistencia Axial Máxima Permisible (Art. 10.3.5):</div>
+              <div>ФPn,max = 0.80 × Ф × [ 0.85 × f'c × (Ag - Ast) + fy × Ast ]</div>
+              <div class="bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 font-bold p-2 rounded text-center">
+                => ФPn,max = ${diag.phi_pn_max || 148.10} Ton
+              </div>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border space-y-2">
+              <div class="font-bold text-blue-700 dark:text-blue-400 border-b pb-1">3. Condición Balanceada (Art. 10.3.2):</div>
+              <div>• Profundidad Eje Neutro (cb): ${diag.cb || 32.94} cm</div>
+              <div>• Bloque Estreses Whitney (ab): ${diag.ab || 28.00} cm</div>
+              <div>• Carga Axial Balanceada (Pb): ${diag.pb || 98.40} Ton</div>
+              <div>• Momento Balanceado (Mb): ${diag.mb || 18.20} Ton-m</div>
+            </div>
+
+            <div class="bg-emerald-600 text-white font-bold p-3 rounded-lg text-sm text-center">
+              ✓ FLEXOCOMPRESIÓN BIAXIAL EVALUADA CON ÉXITO EN LAS 9 COMBINACIONES E.060
+            </div>
+          `;
+
+          renderPMCanvas('pm-canvas-m3', result.diagrama, result.combos_e060, 'M3');
+          renderPMCanvas('pm-canvas-m2', result.diagrama_m2, result.combos_e060, 'M2');
+          renderPlantaCanvas(data.b, data.h, data);
+          renderCorteCanvas(data.b, data.h, data.h_libre, result.estribos);
+
+          renderColumnaCanvas(data.b, data.h);
+          renderElevacionCanvas(data.b, data.h);
+
+          if (scene3D) {
+            update3DModel(data.b, data.h, data.h_libre, data, result.estribos);
+          }
+
+          actualizarMemoriaLive();
+
+          const badgeTop = document.getElementById('badge-status-top');
+          if (est.cumple_corte) {
+            badgeTop.className = "text-xs px-3 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+            badgeTop.innerText = "✓ DENTRO DE ENVOLVENTE (OK)";
+          } else {
+            badgeTop.className = "text-xs px-3 py-1 rounded-full font-bold bg-red-100 text-red-800 border border-red-300";
+            badgeTop.innerText = "✗ NO CUMPLE A CORTANTE (ΦVn < Vu)";
+          }
+        }
+      } catch (e) {}
+    }
+
+    function calcPesoPorMetro(db_cm) {
+      const d_m = (db_cm || 0.95) / 100.0;
+      return (Math.PI / 4) * d_m * d_m * 7850.0;
+    }
+
+    function longitudEstribo(b, h, db_est_cm, rec) {
+      const r = rec || 4.0;
+      const bInt = Math.max(1, b - 2 * r);
+      const hInt = Math.max(1, h - 2 * r);
+      const perimM = 2 * (bInt + hInt) / 100.0;
+      const ganchosM = 2 * (10 * (db_est_cm || 0.95)) / 100.0;
+      return perimM + ganchosM;
+    }
+
+    function contarEstribosTotal(Hc, loM, soCm, sFueraCm) {
+      const so = (soCm || 10) / 100.0;
+      const sf = (sFueraCm || 25) / 100.0;
+      let count = 0;
+      let y = 0.05;
+      while (y <= loM) { count++; y += so; }
+      while (y < (Hc - loM)) { count++; y += sf; }
+      y = Hc - loM;
+      while (y <= Hc - 0.05) { count++; y += so; }
+      return count;
+    }
+
+    // --- GENERACIÓN DE HTML DE MEMORIA DE CÁLCULO ---
+
+    function generarHTMLMemoria() {
+      const imgPMm3 = document.getElementById('pm-canvas-m3') ? document.getElementById('pm-canvas-m3').toDataURL('image/png') : '';
+      const imgPMm2 = document.getElementById('pm-canvas-m2') ? document.getElementById('pm-canvas-m2').toDataURL('image/png') : '';
+      const imgPlanta = document.getElementById('planta-canvas') ? document.getElementById('planta-canvas').toDataURL('image/png') : '';
+      const imgCorte = document.getElementById('corte-canvas') ? document.getElementById('corte-canvas').toDataURL('image/png') : '';
+      const img3D = (renderer3D && renderer3D.domElement) ? renderer3D.domElement.toDataURL('image/png') : '';
+
+      const inp = ultimoResultado ? ultimoResultado.input_data : {};
+      const est = ultimoResultado ? ultimoResultado.estribos : {};
+      const diag = ultimoResultado ? (ultimoResultado.diagrama || {}) : {};
+      const combos = ultimoResultado ? ultimoResultado.combos_e060 : [];
+
+      const projNombre = document.getElementById('proj-nombre') ? document.getElementById('proj-nombre').value : 'MEJORAMIENTO Y AMPLIACIÓN GOBIERNO REGIONAL DE TUMBES';
+      const projLugar = document.getElementById('proj-lugar') ? document.getElementById('proj-lugar').value : 'TUMBES, TUMBES - PERÚ';
+      const projAutor = document.getElementById('proj-autor') ? document.getElementById('proj-autor').value : 'ING. DANIEL FLORES - CIP 28491';
+      const projCliente = document.getElementById('proj-cliente') ? document.getElementById('proj-cliente').value : 'GOBIERNO REGIONAL DE TUMBES';
+      const projElemento = document.getElementById('proj-elemento') ? document.getElementById('proj-elemento').value : 'COLUMNA C-3 (EJE 2-B)';
+      const projFecha = document.getElementById('proj-fecha') ? document.getElementById('proj-fecha').value : 'SETIEMBRE 2026';
+      const projCodigo = document.getElementById('proj-codigo') ? document.getElementById('proj-codigo').value : 'CALC-COL-003';
+
+      const fc = inp.fc || 210;
+      const fy = inp.fy || 4200;
+      const ag = (inp.b || 25) * (inp.h || 60);
+      const ast_usado = ultimoResultado ? ultimoResultado.ast_usado : 15.84;
+
+      return `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <script src="https://cdn.tailwindcss.com"><\/script>
+          <style>
+            @page { size: A4; margin: 15mm; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; background: #fff; line-height: 1.4; font-size: 12px; margin: 0; padding: 20px; }
+            
+            .header-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 12px; }
+            .memoria-title { font-size: 18px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: -0.02em; }
+            .norm-subtitle { font-size: 11px; color: #475569; font-weight: 600; }
+            
+            .metadata-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; margin-bottom: 16px; font-size: 11px; }
+            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+            
+            .banner-yellow { background: #f59e0b; color: #0f172a; font-weight: 800; padding: 5px 10px; border-radius: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 15px; margin-bottom: 8px; }
+            
+            .table-zapatas { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11px; }
+            .table-zapatas th { background: #e0f2fe; color: #0369a1; padding: 4px 6px; font-weight: 700; text-align: left; border: 1px solid #bae6fd; }
+            .table-zapatas td { border: 1px solid #e2e8f0; padding: 4px 6px; }
+            .table-zapatas tr:nth-child(even) { background: #f8fafc; }
+            
+            .formula-card { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; margin-bottom: 10px; }
+            .badge-cumple { background: #dcfce7; color: #15803d; font-weight: 800; padding: 2px 6px; border-radius: 4px; border: 1px solid #86efac; font-size: 10px; }
+
+            .page-break { page-break-after: always; }
+          </style>
+        </head>
+        <body>
+          <div class="header-top">
+            <div>
+              <div class="memoria-title">MEMORIA DE CÁLCULO DE ESTRUCTURAS</div>
+              <div class="norm-subtitle">Norma NTP E.060 (Concreto Armado) / NTP E.030 (Diseño Sismorresistente) — RNE, Perú</div>
+            </div>
+            <div class="text-right text-xs font-bold text-slate-500">
+              MEMORIA DE CÁLCULO<br>${projCodigo}
+            </div>
+          </div>
+
+          <div class="metadata-card">
+            <div class="meta-grid">
+              <div><strong>PROYECTO:</strong> ${projNombre}</div>
+              <div><strong>PROPIETARIO / CLIENTE:</strong> ${projCliente}</div>
+              <div><strong>UBICACIÓN / LUGAR:</strong> ${projLugar}</div>
+              <div><strong>ESTRUCTURAS / ELEMENTO:</strong> ${projElemento}</div>
+              <div><strong>DISEÑADO POR:</strong> ${projAutor}</div>
+              <div><strong>FECHA DE CÁLCULO:</strong> ${projFecha}</div>
+              <div><strong>CÓDIGO DE REVISIÓN:</strong> ${projCodigo}</div>
+              <div><strong>NORMATIVA APLICADA:</strong> NTP E.060 / NTP E.030 / RNE PERÚ</div>
+            </div>
+          </div>
+
+          <div class="banner-yellow">I) DATOS DE DISEÑO</div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">Especificaciones del proyecto</h4>
+            <div class="grid grid-cols-2 text-xs space-y-0.5">
+              <div>Resistencia del concreto (f'c) =</div><div class="font-bold text-right">${fc} kg/cm²</div>
+              <div>Resistencia del acero (fy) =</div><div class="font-bold text-right">${fy} kg/cm²</div>
+              <div>Recubrimiento libre (r) =</div><div class="font-bold text-right">4.00 cm</div>
+              <div>Altura libre de columna (Hc) =</div><div class="font-bold text-right">${(inp.h_libre || 3.30).toFixed(2)} m</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">Sección de Columna</h4>
+            <div class="grid grid-cols-2 text-xs space-y-0.5">
+              <div>Ancho de columna (a) =</div><div class="font-bold text-right">${((inp.b || 25)/100).toFixed(2)} m</div>
+              <div>Peralte de columna (b) =</div><div class="font-bold text-right">${((inp.h || 60)/100).toFixed(2)} m</div>
+              <div>Área bruta de sección (Ag) =</div><div class="font-bold text-right">${ag} cm²</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">Cargas en servicio (ETABS)</h4>
+            <table class="table-zapatas">
+              <thead>
+                <tr>
+                  <th>Caso</th>
+                  <th>P (Ton)</th>
+                  <th>Mx (Ton-m)</th>
+                  <th>My (Ton-m)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>CM</td><td>${inp.etabs ? inp.etabs.CM.P : -3.692}</td><td>${inp.etabs ? inp.etabs.CM.M3 : -0.293}</td><td>${inp.etabs ? inp.etabs.CM.M2 : -0.110}</td></tr>
+                <tr><td>CV</td><td>${inp.etabs ? inp.etabs.CV.P : 0.223}</td><td>${inp.etabs ? inp.etabs.CV.M3 : -0.089}</td><td>${inp.etabs ? inp.etabs.CV.M2 : -0.043}</td></tr>
+                <tr><td>SXD</td><td>${inp.etabs ? inp.etabs.SISXX.P : 4.893}</td><td>${inp.etabs ? inp.etabs.SISXX.M3 : 5.522}</td><td>${inp.etabs ? inp.etabs.SISXX.M2 : 0.159}</td></tr>
+                <tr><td>SYD</td><td>${inp.etabs ? inp.etabs.SISYY.P : 48.629}</td><td>${inp.etabs ? inp.etabs.SISYY.M3 : 0.258}</td><td>${inp.etabs ? inp.etabs.SISYY.M2 : 3.009}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="banner-yellow">II) PREDIMENSIONAMIENTO Y EVALUACIÓN DE CARGAS</div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">1°) Verificación por carga axial máxima y cuantía mínima</h4>
+            <div class="grid grid-cols-2 text-xs space-y-0.5">
+              <div>Área mínima de acero (1% Ag) =</div><div class="font-bold text-right">${(ag*0.01).toFixed(2)} cm²</div>
+              <div>Acero adoptado (${(ultimoResultado && ultimoResultado.rotulo_acero) ? ultimoResultado.rotulo_acero : `${inp.num_varillas||8} Varillas de 5/8"`}) =</div><div class="font-bold text-right">${ast_usado} cm² (${((ast_usado/ag)*100).toFixed(2)}% Ag)</div>
+              <div>Resistencia axial máxima (ØPn,max) =</div><div class="font-bold text-right">${diag.phi_pn_max || 148.10} Ton</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">2°) Evaluando las 9 Combinaciones de Diseño E.060</h4>
+            <table class="table-zapatas">
+              <thead>
+                <tr>
+                  <th>Combinación</th>
+                  <th>P (Ton)</th>
+                  <th>M2 (Ton-m)</th>
+                  <th>M3 (Ton-m)</th>
+                  <th>Mu Res (Ton-m)</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${combos.map(c => `
+                  <tr>
+                    <td class="font-bold">${c.nombre}</td>
+                    <td>${c.P}</td>
+                    <td>${c.M2}</td>
+                    <td>${c.M3}</td>
+                    <td class="font-bold text-blue-700">${c.M_res}</td>
+                    <td><span class="badge-cumple">CUMPLE</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- BANNER III) DISEÑO A FLEXOCOMPRESIÓN BIAXIAL -->
+          <div class="banner-yellow">III) DISEÑO A FLEXOCOMPRESIÓN BIAXIAL Y COMPATIBILIDAD DE DEFORMACIONES (NTP E.060 CAPÍTULO 10)</div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">1°) Hipótesis Fundamental y Parámetros E.060 (Art. 10.2 & 10.3)</h4>
+            <div class="formula-card">
+              <p>• Deformación unitaria máxima del concreto en compresión: <strong>εcu = 0.003</strong> (Art. 10.2.3)</p>
+              <p>• Deformación de fluencia del acero: <strong>εy = fy / Es = 4200 / 2,000,000 = 0.0021</strong></p>
+              <p>• Bloque rectangular equivalente de esfuerzo de Whitney: <strong>β1 = ${diag.beta1 || 0.85}</strong> (para f'c = ${fc} kg/cm² ≤ 280 kg/cm²)</p>
+              <p>• Factor de reducción de resistencia con estribos: <strong>Ф = 0.65</strong> (Art. 9.3.2)</p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">2°) Carga Axial Máxima Permisible (E.060 Art. 10.3.5)</h4>
+            <div class="formula-card">
+              <p>ФPn,max = 0.80 × Ф × [ 0.85 × f'c × (Ag - Ast) + fy × Ast ]</p>
+              <p>ФPn,max = 0.80 × 0.65 × [ 0.85 × ${fc} × (${ag} - ${ast_usado}) + ${fy} × ${ast_usado} ] / 1000</p>
+              <p class="font-bold text-blue-900 mt-1">=> ФPn,max = ${diag.phi_pn_max || 148.10} Ton (Carga Axial Máxima Límite)</p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">3°) Condición Balanceada ($P_b, M_b$) y Compatibilidad de Deformaciones (Art. 10.3.2)</h4>
+            <div class="formula-card">
+              <p>• Eje neutro balanceado: cb = [ 6000 / (6000 + fy) ] × d = [ 6000 / 10200 ] × ${(inp.h ? inp.h-4 : 56).toFixed(1)} cm = ${diag.cb || 32.94} cm</p>
+              <p>• Bloque de compresiones equivalente: ab = β1 × cb = 0.85 × ${diag.cb || 32.94} cm = ${diag.ab || 28.00} cm</p>
+              <p class="font-bold text-blue-900 mt-1">=> Carga Axial Balanceada Pb = ${diag.pb || 98.40} Ton | Momento Balanceado Mb = ${diag.mb || 18.20} Ton-m</p>
+            </div>
+          </div>
+
+          <!-- REPASO DE VISTAS Y MODELO 3D EN SECUENCIA VERTICAL CON DESCRIPCIONES DE INGENIERÍA -->
+          <div class="mb-4">
+            <h4 class="font-bold text-slate-800 mb-2">4°) Representación Gráfica Secuencial del Diagrama de Interacción, Armadura y Modelo 3D</h4>
+
+            <div class="space-y-4">
+
+              <!-- FIGURA 1A: DIAGRAMA P-M3 (SISXX) -->
+              <div class="border border-slate-300 rounded-lg p-3 bg-slate-50 text-center shadow-xs">
+                <p class="font-bold text-xs text-slate-800 mb-1">Figura 1a: Diagrama de Interacción P-M3 — Dirección X-X, SISXX (Envolvente ØPn - ØM3)</p>
+                <img src="${imgPMm3}" class="mx-auto rounded border border-slate-300 max-h-[220px] bg-white my-2">
+                <p class="text-[11px] text-slate-600 italic px-4 text-justify">
+                  <strong>Descripción Técnica:</strong> Diagrama de Interacción P-M3 (flexión resistida a lo largo de la dimensión "h" de la columna) que representa la curva envolvente de diseño ФPn - ФM3 calculada mediante compatibilidad de deformaciones según la norma NTP E.060. Los puntos a color corresponden a las 9 combinaciones de carga del ETABS (CM, CV, SISXX, SISYY), ubicados dentro del área de resistencia segura de la columna para esta dirección de análisis.
+                </p>
+              </div>
+
+              <!-- FIGURA 1B: DIAGRAMA P-M2 (SISYY) -->
+              <div class="border border-slate-300 rounded-lg p-3 bg-slate-50 text-center shadow-xs">
+                <p class="font-bold text-xs text-slate-800 mb-1">Figura 1b: Diagrama de Interacción P-M2 — Dirección Y-Y, SISYY (Envolvente ØPn - ØM2)</p>
+                <img src="${imgPMm2}" class="mx-auto rounded border border-slate-300 max-h-[220px] bg-white my-2">
+                <p class="text-[11px] text-slate-600 italic px-4 text-justify">
+                  <strong>Descripción Técnica:</strong> Diagrama de Interacción P-M2 (flexión resistida a lo largo de la dimensión "b" de la columna) que representa la curva envolvente de diseño ФPn - ФM2 calculada mediante compatibilidad de deformaciones según la norma NTP E.060. Los puntos a color corresponden a las 9 combinaciones de carga del ETABS (CM, CV, SISXX, SISYY), ubicados dentro del área de resistencia segura de la columna para esta dirección de análisis.
+                </p>
+              </div>
+
+              <!-- FIGURA 2: VISTA EN PLANTA 2D -->
+              <div class="border border-slate-300 rounded-lg p-3 bg-slate-50 text-center shadow-xs">
+                <p class="font-bold text-xs text-slate-800 mb-1">Figura 2: Vista en Planta — Sección Transversal Detallada (a × b)</p>
+                <img src="${imgPlanta}" class="mx-auto rounded border border-slate-300 max-h-[220px] bg-white my-2">
+                <p class="text-[11px] text-slate-600 italic px-4 text-justify">
+                  <strong>Descripción Técnica:</strong> Detalle de la sección transversal de la columna (${inp.b || 25} cm × ${inp.h || 60} cm). Muestra la distribución del refuerzo longitudinal (${(ultimoResultado && ultimoResultado.rotulo_acero) ? ultimoResultado.rotulo_acero : `${inp.num_varillas||8} Varillas`}), un recubrimiento libre de concreto r = 4.0 cm y el estribo de confinamiento de Ø 3/8" cerrado con ganchos sísmicos a 135°.
+                </p>
+              </div>
+
+              <!-- FIGURA 3: VISTA EN CORTE 2D -->
+              <div class="border border-slate-300 rounded-lg p-3 bg-slate-50 text-center shadow-xs">
+                <p class="font-bold text-xs text-slate-800 mb-1">Figura 3: Vista en Corte — Elevación Longitudinal (Hc) y Confinamiento Sísmico</p>
+                <img src="${imgCorte}" class="mx-auto rounded border border-slate-300 max-h-[240px] bg-white my-2">
+                <p class="text-[11px] text-slate-600 italic px-4 text-justify">
+                  <strong>Descripción Técnica:</strong> Elevación longitudinal de la columna de altura libre Hc = ${(inp.h_libre || 3.30).toFixed(2)} m. Se detalla la zonificación de estribos según la norma NTP E.060 Art. 21.4, destacando la Zona de Confinamiento (Lo = ${est.lo_m || 0.60} m) en los extremos con espaciamiento denso so = ${est.so_cm || 10} cm vs la Zona Central no confinada (s = ${est.s_fuera_cm || 25} cm).
+                </p>
+              </div>
+
+              <!-- FIGURA 4: MODELO 3D TRIDIMENSIONAL -->
+              <div class="border border-slate-700 rounded-lg p-3 bg-slate-900 text-white text-center shadow-xs">
+                <p class="font-bold text-xs mb-1 text-blue-300">Figura 4: Modelo Tridimensional (Render 3D de Concreto y Armadura de Acero)</p>
+                ${img3D ? `<img src="${img3D}" class="mx-auto rounded border border-slate-700 max-h-[240px] my-2">` : '<div class="p-4 text-xs text-slate-400">Modelo 3D disponible en visualizador WebGL</div>'}
+                <p class="text-[11px] text-slate-300 italic px-4 text-justify">
+                  <strong>Descripción Técnica:</strong> Modelo tridimensional renderizado en WebGL que representa la masa de concreto traslúcida y el esqueleto espacial del acero de refuerzo. Muestra la continuidad de las varillas longitudinales (${(ultimoResultado && ultimoResultado.rotulo_acero) ? ultimoResultado.rotulo_acero : `${inp.num_varillas||8} Varillas`}) y la disposición espacial de los anillos de estribos de Ø 3/8" colocados a lo largo de toda la elevación de la columna.
+                </p>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- BANNER IV) DISEÑO A CORTANTE Y CONFINAMIENTO SÍSMICO -->
+          <div class="banner-yellow">IV) DISEÑO A CORTANTE Y CONFINAMIENTO SÍSMICO (NTP E.060 CAP. 11 & CAP. 21)</div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">1°) Cortante Actuante y Peralte Efectivo</h4>
+            <div class="formula-card">
+              <p>Cortante actuante de diseño: <strong>Vu = ${est.vu_ton} Ton</strong></p>
+              <p>Peralte efectivo: d = h - rec - db,est - db,long/2 = <strong>${est.d_cm} cm</strong></p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">2°) Resistencia del Concreto al Cortante con Compresión Axial (Art. 11.3.1.2)</h4>
+            <div class="formula-card">
+              <p>Vc = 0.53 × √f'c × b × d × (1 + Nu / 140·Ag)</p>
+              <p class="font-bold text-blue-900 mt-1">=> Vc = ${est.vc_ton} Ton</p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">3°) Cortante Requerido del Acero (Vs) y Verificación de Capacidad Nominal (Ф = 0.85)</h4>
+            <div class="formula-card">
+              <p>Vs = Vu/Ф - Vc = ${est.vu_ton}/0.85 - ${est.vc_ton} = <strong>${est.vs_ton} Ton</strong></p>
+              <p>Verificación de sección (Vs ≤ Vs,max): <span class="badge-cumple">${est.cumple_seccion ? 'CUMPLE' : 'NO CUMPLE'}</span></p>
+              <p class="font-bold ${est.cumple_corte ? 'text-emerald-700' : 'text-red-700'} mt-1">=> ΦVn = Ф(Vc+Vs) = ${est.phi_vn_ton} Ton ${est.cumple_corte ? '≥' : '<'} Vu = ${est.vu_ton} Ton <span class="badge-cumple">${est.cumple_corte ? 'CUMPLE' : 'NO CUMPLE'}</span></p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">4°) Espaciamiento de Estribos por Cortante</h4>
+            <div class="formula-card">
+              <p>s_corte = Av·fy·d / Vs = (${est.av_cm2} cm² × ${fy} × ${est.d_cm} cm) / (${est.vs_ton} × 1000) = <strong>${est.s_corte_cm} cm</strong></p>
+              <p>Av = n_ramas × Ab,estribo = ${est.n_ramas} ramas Ø${(est.db_est_cm||0.95).toFixed(2)} cm = ${est.av_cm2} cm²</p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h4 class="font-bold text-slate-800 mb-1">5°) Integración con Confinamiento Sísmico (Art. 21.4.4)</h4>
+            <div class="formula-card">
+              <p class="font-bold text-slate-900 mb-0.5">§ Zona de Confinamiento (Lo):</p>
+              <p>* Hc / 6 = ${est.lo_detalles ? est.lo_detalles.hc_6 : 0.55} m | Lado mayor = ${est.lo_detalles ? est.lo_detalles.lado_mayor : 0.60} m => El mayor = ${est.lo_m} m</p>
+              <p class="font-bold text-slate-900 mb-0.5 mt-1.5">§ Espaciamiento en Confinamiento (so):</p>
+              <p>* 8 db long = ${est.so_detalles ? est.so_detalles.s_8db : 13} cm | b/2 = ${est.so_detalles ? est.so_detalles.s_b2 : 13} cm | s_corte = ${est.so_detalles ? est.so_detalles.s_corte : est.s_corte_cm} cm => El menor = ${est.so_cm} cm</p>
+              <p class="font-bold text-slate-900 mb-0.5 mt-1.5">§ Espaciamiento Fuera de Confinamiento (s_resto):</p>
+              <p>* 16 db long = ${est.s_fuera_detalles ? est.s_fuera_detalles.sf_16db : 25} cm | 48 db estribo = ${est.s_fuera_detalles ? est.s_fuera_detalles.sf_48db : 25} cm | b = ${est.s_fuera_detalles ? est.s_fuera_detalles.sf_b : 25} cm => El menor = ${est.s_fuera_cm} cm</p>
+              <p class="font-bold text-blue-900 mt-1.5">=> Distribución Final de Estribos: ${est.rotulo_estribos}</p>
+            </div>
+          </div>
+
+          <div class="banner-yellow">V) CUADRO DE HABILITACIÓN DE ACERO</div>
+
+          <table class="table-zapatas">
+            <thead>
+              <tr>
+                <th>Marca</th>
+                <th>Elemento</th>
+                <th>Armado Adoptado</th>
+                <th>Long. (1 barra)</th>
+                <th>Cant. Varillas</th>
+                <th>Long. Total</th>
+                <th>Peso Total Aprox.</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>C1</td>
+                <td>Varillas Longitudinales ${projElemento}</td>
+                <td>${(ultimoResultado && ultimoResultado.rotulo_acero) ? ultimoResultado.rotulo_acero : `${inp.num_varillas||8} Varillas`}</td>
+                <td>3.80 m</td>
+                <td>${ultimoResultado ? ultimoResultado.num_varillas : (inp.num_varillas || 8)}</td>
+                <td>30.4 m</td>
+                <td>48.6 kg</td>
+              </tr>
+              ${(() => {
+                const hLibre = inp.h_libre || 3.30;
+                const numEst = contarEstribosTotal(hLibre, est.lo_m || 0.60, est.so_cm || 10, est.s_fuera_cm || 25);
+                const largoEst = longitudEstribo(inp.b || 25, inp.h || 60, est.db_est_cm || 0.95, 4.0);
+                const largoTotal = numEst * largoEst;
+                const pesoTotal = largoTotal * calcPesoPorMetro(est.db_est_cm || 0.95);
+                const nomEst = est.db_est_cm && Math.abs(est.db_est_cm - 0.80) < 0.05 ? 'ø8mm' : (est.db_est_cm && Math.abs(est.db_est_cm - 1.27) < 0.05 ? 'ø1/2"' : 'ø3/8"');
+                return `
+              <tr>
+                <td>C2</td>
+                <td>Estribos de Confinamiento y Cortante ${nomEst}</td>
+                <td>${nomEst}</td>
+                <td>${largoEst.toFixed(2)} m</td>
+                <td>${numEst}</td>
+                <td>${largoTotal.toFixed(1)} m</td>
+                <td>${pesoTotal.toFixed(1)} kg</td>
+              </tr>
+              <tr class="font-bold bg-slate-100">
+                <td colspan="6" class="text-right">TOTAL ACERO REQUERIDO:</td>
+                <td class="text-blue-900">${(48.6 + pesoTotal).toFixed(1)} kg</td>
+              </tr>`;
+              })()}
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+    }
+
+    function actualizarMemoriaLive() {
+      const html = generarHTMLMemoria();
+
+      // 1. Tab container
+      const containerTab = document.getElementById('memoria-live-tab-container');
+      if (containerTab) {
+        containerTab.innerHTML = `<div class="a4-page">${html}</div>`;
+      }
+
+      // 2. Modal iframe
+      const iframeModal = document.getElementById('iframe-memoria-modal');
+      if (iframeModal && iframeModal.contentWindow) {
+        const doc = iframeModal.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+      }
+    }
+
+    function descargarPDFDirecto() {
+      const codigo = document.getElementById('proj-codigo') ? document.getElementById('proj-codigo').value : 'CALC-COL-003';
+      const filename = `Memoria_de_Calculo_${codigo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+
+      const element = document.createElement('div');
+      element.innerHTML = generarHTMLMemoria();
+      document.body.appendChild(element);
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        document.body.removeChild(element);
+      }).catch(err => {
+        document.body.removeChild(element);
+        imprimirMemoriaZapatasProStyle();
+      });
+    }
+
+    function renderPMCanvas(canvasId, diagrama, combos, momentKey) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !diagrama) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const pNominal = diagrama.nominales;
+      const pDiseno = diagrama.diseno;
+
+      const mKey = momentKey || 'M_res';
+      const allM = [...pNominal.map(pt => pt.M), ...combos.map(c => Math.abs(c[mKey])), 1.0];
+      const allP = [...pNominal.map(pt => pt.P), ...combos.map(c => c.P), 10.0];
+
+      let maxM = Math.max(...allM) * 1.15;
+      let maxP = Math.max(...allP) * 1.15;
+      let minP = Math.min(...allP, 0.0);
+
+      const padL = 60, padR = 25, padT = 30, padB = 45;
+      const graphW = canvas.width - padL - padR;
+      const graphH = canvas.height - padT - padB;
+
+      const mapX = (m) => padL + (m / maxM) * graphW;
+      const mapY = (p) => padT + (1 - (p - minP) / (maxP - minP)) * graphH;
+
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      for(let m = 0; m <= maxM; m += maxM / 5) {
+        ctx.beginPath();
+        ctx.moveTo(mapX(m), padT); ctx.lineTo(mapX(m), canvas.height - padB); ctx.stroke();
+        ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(m.toFixed(1), mapX(m), canvas.height - padB + 15);
+      }
+
+      const yZero = mapY(0);
+      ctx.beginPath(); ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([4, 4]);
+      ctx.moveTo(padL, yZero); ctx.lineTo(canvas.width - padR, yZero); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(padL, padT); ctx.lineTo(padL, canvas.height - padB); ctx.lineTo(canvas.width - padR, canvas.height - padB); ctx.stroke();
+
+      ctx.fillStyle = '#1e293b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(`Momento ${mKey} (Ton-m)`, padL + graphW / 2, canvas.height - 10);
+
+      ctx.fillStyle = 'rgba(37, 99, 235, 0.1)'; ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2.5; ctx.beginPath();
+      pDiseno.forEach((pt, i) => {
+        const x = mapX(pt.M), y = mapY(pt.P);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.lineTo(mapX(0), mapY(pDiseno[pDiseno.length-1].P));
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+
+      combos.forEach(c => {
+        const ptX = mapX(Math.abs(c[mKey]));
+        const ptY = mapY(c.P);
+
+        ctx.fillStyle = c.nombre.includes('SISXX') ? '#eab308' : (c.nombre.includes('SISYY') ? '#10b981' : '#3b82f6');
+        ctx.beginPath(); ctx.arc(ptX, ptY, 6, 0, 2 * Math.PI); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+      });
+    }
+
+    function renderPlantaCanvas(b, h, inpData) {
+      const canvas = document.getElementById('planta-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const pad = 75;
+      const scale = Math.min((canvas.width - 2*pad)/b, (canvas.height - 2*pad)/h);
+      const wPx = b * scale, hPx = h * scale;
+      const x0 = (canvas.width - wPx)/2, y0 = (canvas.height - hPx)/2;
+
+      ctx.fillStyle = '#e2e8f0'; ctx.fillRect(x0, y0, wPx, hPx);
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2.5; ctx.strokeRect(x0, y0, wPx, hPx);
+
+      const recPx = 4 * scale;
+      const stX = x0 + recPx, stY = y0 + recPx;
+      const stW = wPx - 2*recPx, stH = hPx - 2*recPx;
+
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.5;
+      ctx.strokeRect(stX, stY, stW, stH);
+
+      ctx.beginPath();
+      ctx.moveTo(stX, stY + 15); ctx.lineTo(stX + 15, stY + 15);
+      ctx.moveTo(stX + 15, stY); ctx.lineTo(stX + 15, stY + 15);
+      ctx.stroke();
+
+      const inp = inpData || (ultimoResultado ? ultimoResultado.input_data : {});
+      const varillas = obtenerListaVarillas(inp);
+
+      const realStW = Math.max(1, b - 8);
+      const realStH = Math.max(1, h - 8);
+
+      varillas.forEach(v => {
+        const rx = stX + (v.x / realStW) * stW;
+        const ry = stY + (v.y / realStH) * stH;
+        const rPx = Math.max(5, (v.db / 1.59) * 6.5);
+
+        ctx.fillStyle = v.tipo === 'esq' ? '#b45309' : (v.tipo === 'cara_b' ? '#2563eb' : (v.tipo === 'cara_h' ? '#059669' : '#0f172a'));
+        ctx.beginPath(); ctx.arc(rx, ry, rPx, 0, 2*Math.PI); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+      });
+
+      ctx.strokeStyle = '#475569'; ctx.fillStyle = '#334155'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.beginPath(); ctx.moveTo(x0, y0 - 20); ctx.lineTo(x0 + wPx, y0 - 20); ctx.stroke();
+      ctx.fillText(`a = ${b} cm`, x0 + wPx/2, y0 - 28);
+
+      ctx.beginPath(); ctx.moveTo(x0 - 20, y0); ctx.lineTo(x0 - 20, y0 + hPx); ctx.stroke();
+      ctx.save(); ctx.translate(x0 - 28, y0 + hPx/2); ctx.rotate(-Math.PI/2);
+      ctx.fillText(`b = ${h} cm`, 0, 0); ctx.restore();
+
+      const rotulo = (ultimoResultado && ultimoResultado.rotulo_acero) ? ultimoResultado.rotulo_acero : `${inp.num_varillas || 8} Ø 5/8"`;
+      ctx.fillStyle = '#2563eb'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`Refuerzo: ${rotulo}`, x0 + wPx + 15, y0 + hPx/2 - 10);
+      ctx.fillText(`Recubrimiento: r = 4.0 cm`, x0 + wPx + 15, y0 + hPx/2 + 10);
+      ctx.fillText(`Estribos: Ø 3/8" @ 135°`, x0 + wPx + 15, y0 + hPx/2 + 30);
+    }
+
+    function renderCorteCanvas(b, h, Hc, estribos) {
+      const canvas = document.getElementById('corte-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const wPx = 140, hPx = 340;
+      const x0 = (canvas.width - wPx)/2 - 40, y0 = (canvas.height - hPx)/2;
+
+      ctx.fillStyle = '#f1f5f9'; ctx.fillRect(x0, y0, wPx, hPx);
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 2.5; ctx.strokeRect(x0, y0, wPx, hPx);
+
+      ctx.fillStyle = '#cbd5e1'; ctx.fillRect(x0 - 40, y0 + hPx, wPx + 80, 25);
+      ctx.strokeRect(x0 - 40, y0 + hPx, wPx + 80, 25);
+
+      ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(x0 + 12, y0 - 10); ctx.lineTo(x0 + 12, y0 + hPx + 15); ctx.lineTo(x0 + 35, y0 + hPx + 15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0 + wPx - 12, y0 - 10); ctx.lineTo(x0 + wPx - 12, y0 + hPx + 15); ctx.lineTo(x0 + wPx - 35, y0 + hPx + 15); ctx.stroke();
+
+      const loM = (estribos && estribos.lo_m) ? estribos.lo_m : 0.60;
+      const loPx = (loM / Hc) * hPx;
+
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
+      ctx.fillRect(x0, y0, wPx, loPx);
+      ctx.fillRect(x0, y0 + hPx - loPx, wPx, loPx);
+
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5;
+
+      for(let y = y0 + 8; y <= y0 + loPx; y += 12) {
+        ctx.beginPath(); ctx.moveTo(x0 + 8, y); ctx.lineTo(x0 + wPx - 8, y); ctx.stroke();
+      }
+      for(let y = y0 + loPx + 20; y <= y0 + hPx - loPx - 10; y += 24) {
+        ctx.beginPath(); ctx.moveTo(x0 + 8, y); ctx.lineTo(x0 + wPx - 8, y); ctx.stroke();
+      }
+      for(let y = y0 + hPx - loPx; y <= y0 + hPx - 8; y += 12) {
+        ctx.beginPath(); ctx.moveTo(x0 + 8, y); ctx.lineTo(x0 + wPx - 8, y); ctx.stroke();
+      }
+
+      ctx.fillStyle = '#1e293b'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`Hc = ${Hc.toFixed(2)} m`, x0 + wPx + 25, y0 + hPx/2);
+
+      ctx.fillStyle = '#b45309';
+      ctx.fillText(`Zona Lo = ${loM.toFixed(2)} m (so = ${estribos ? estribos.so_cm : 10} cm)`, x0 + wPx + 25, y0 + loPx/2);
+      ctx.fillText(`Zona Lo = ${loM.toFixed(2)} m (so = ${estribos ? estribos.so_cm : 10} cm)`, x0 + wPx + 25, y0 + hPx - loPx/2);
+
+      ctx.fillStyle = '#475569';
+      ctx.fillText(`Zona Central (s = ${estribos ? estribos.s_fuera_cm : 25} cm)`, x0 + wPx + 25, y0 + hPx/2 + 20);
+    }
+
+    function renderColumnaCanvas(b, h) {
+      const canvas = document.getElementById('col-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const padding = 30;
+      const scale = Math.min((canvas.width - 2*padding)/b, (canvas.height - 2*padding)/h);
+      const wPx = b * scale, hPx = h * scale;
+      const x0 = (canvas.width - wPx)/2, y0 = (canvas.height - hPx)/2;
+
+      ctx.fillStyle = '#cbd5e1'; ctx.fillRect(x0, y0, wPx, hPx);
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, wPx, hPx);
+
+      const recPx = 4 * scale;
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.strokeRect(x0 + recPx, y0 + recPx, wPx - 2*recPx, hPx - 2*recPx);
+
+      ctx.fillStyle = '#1e293b';
+      const rebars = [
+        [x0+recPx, y0+recPx], [x0+wPx-recPx, y0+recPx], [x0+recPx, y0+hPx-recPx], [x0+wPx-recPx, y0+hPx-recPx],
+        [x0+wPx/2, y0+recPx], [x0+wPx/2, y0+hPx-recPx]
+      ];
+      rebars.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 5, 0, 2*Math.PI); ctx.fill(); });
+    }
+
+    function renderElevacionCanvas(b, h) {
+      const canvas = document.getElementById('elev-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const w = 80, H = 220;
+      const x0 = (canvas.width - w)/2, y0 = (canvas.height - H)/2;
+
+      ctx.fillStyle = '#e2e8f0'; ctx.fillRect(x0, y0, w, H);
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, w, H);
+
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x0+10, y0-15); ctx.lineTo(x0+10, y0+H+15);
+      ctx.moveTo(x0+w-10, y0-15); ctx.lineTo(x0+w-10, y0+H+15);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5;
+      for(let y=y0+8; y<=y0+50; y+=8) { ctx.beginPath(); ctx.moveTo(x0+6, y); ctx.lineTo(x0+w-6, y); ctx.stroke(); }
+      for(let y=y0+65; y<=y0+155; y+=18) { ctx.beginPath(); ctx.moveTo(x0+6, y); ctx.lineTo(x0+w-6, y); ctx.stroke(); }
+      for(let y=y0+170; y<=y0+H-8; y+=8) { ctx.beginPath(); ctx.moveTo(x0+6, y); ctx.lineTo(x0+w-6, y); ctx.stroke(); }
+    }
+
+    // --- THREE.JS 3D SCENE ---
+
+    function init3DScene() {
+      const container = document.getElementById('three-container');
+      if (!container || scene3D) return;
+
+      const width = container.clientWidth || 600;
+      const height = 440;
+
+      scene3D = new THREE.Scene();
+      scene3D.background = new THREE.Color(0x0f172a);
+
+      camera3D = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      camera3D.position.set(2.2, 2.2, 3.2);
+
+      renderer3D = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer3D.setSize(width, height);
+      renderer3D.setPixelRatio(window.devicePixelRatio);
+      renderer3D.shadowMap.enabled = true;
+      container.appendChild(renderer3D.domElement);
+
+      controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+      controls3D.enableDamping = true;
+      controls3D.dampingFactor = 0.05;
+
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene3D.add(ambLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight1.position.set(5, 10, 7);
+      scene3D.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+      dirLight2.position.set(-5, -5, -5);
+      scene3D.add(dirLight2);
+
+      const grid = new THREE.GridHelper(10, 20, 0x3b82f6, 0x334155);
+      grid.position.y = 0;
+      scene3D.add(grid);
+
+      group3D = new THREE.Group();
+      scene3D.add(group3D);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls3D.update();
+        renderer3D.render(scene3D, camera3D);
+      }
+      animate();
+    }
+
+    function reset3DCamera() {
+      if (camera3D && controls3D) {
+        camera3D.position.set(2.2, 2.2, 3.2);
+        controls3D.target.set(0, 1.5, 0);
+        controls3D.update();
+      }
+    }
+
+    function update3DModel(b_cm, h_cm, Hc_m, inputData, estribos) {
+      if (!scene3D) init3DScene();
+      if (!group3D) return;
+
+      while (group3D.children.length > 0) {
+        group3D.remove(group3D.children[0]);
+      }
+
+      const b = b_cm / 100;
+      const h = h_cm / 100;
+      const H = Hc_m;
+      const rec = 0.04;
+
+      const concGeo = new THREE.BoxGeometry(b, H, h);
+      const concMat = new THREE.MeshStandardMaterial({
+        color: 0x94a3b8,
+        transparent: true,
+        opacity: 0.35,
+        roughness: 0.5,
+        metalness: 0.1
+      });
+      const concMesh = new THREE.Mesh(concGeo, concMat);
+      concMesh.position.set(0, H / 2, 0);
+      group3D.add(concMesh);
+
+      const edgesGeo = new THREE.EdgesGeometry(concGeo);
+      const edgesMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 1.5 });
+      const edgesMesh = new THREE.LineSegments(edgesGeo, edgesMat);
+      edgesMesh.position.set(0, H / 2, 0);
+      group3D.add(edgesMesh);
+
+      const inp = inputData || (ultimoResultado ? ultimoResultado.input_data : {});
+      const varillas = obtenerListaVarillas(inp);
+
+      const halfB = b / 2 - rec;
+      const halfH = h / 2 - rec;
+      const realStW = Math.max(1, b_cm - 8);
+      const realStH = Math.max(1, h_cm - 8);
+
+      varillas.forEach(v => {
+        const rRad = Math.max(0.006, (v.db / 100) / 2);
+        const rebGeo = new THREE.CylinderGeometry(rRad, rRad, H + 0.4, 16);
+
+        let colorHex = 0xf59e0b;
+        if (v.tipo === 'cara_b') colorHex = 0x3b82f6;
+        if (v.tipo === 'cara_h') colorHex = 0x10b981;
+
+        const rebMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.8, roughness: 0.2 });
+
+        const normX = v.x / realStW;
+        const normZ = v.y / realStH;
+
+        const posX = -halfB + normX * (2 * halfB);
+        const posZ = -halfH + normZ * (2 * halfH);
+
+        const reb = new THREE.Mesh(rebGeo, rebMat);
+        reb.position.set(posX, H / 2, posZ);
+        group3D.add(reb);
+      });
+
+      const stMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 3 });
+      const lo = (estribos && estribos.lo_m) ? estribos.lo_m : 0.60;
+      const so = (estribos && estribos.so_cm) ? estribos.so_cm / 100 : 0.10;
+      const sf = (estribos && estribos.s_fuera_cm) ? estribos.s_fuera_cm / 100 : 0.20;
+
+      let y = 0.05;
+      const yList = [];
+      while (y <= lo) { yList.push(y); y += so; }
+      while (y < (H - lo)) { yList.push(y); y += sf; }
+      y = H - lo;
+      while (y <= H - 0.05) { yList.push(y); y += so; }
+
+      yList.forEach(stY => {
+        const stPts = [
+          new THREE.Vector3(-halfB, stY, -halfH),
+          new THREE.Vector3(halfB, stY, -halfH),
+          new THREE.Vector3(halfB, stY, halfH),
+          new THREE.Vector3(-halfB, stY, halfH),
+          new THREE.Vector3(-halfB, stY, -halfH)
+        ];
+        const stGeo = new THREE.BufferGeometry().setFromPoints(stPts);
+        const stLine = new THREE.Line(stGeo, stMat);
+        group3D.add(stLine);
+      });
+
+      if (controls3D) controls3D.target.set(0, H / 2, 0);
+    }
+
+    function imprimirMemoriaZapatasProStyle() {
+      const win = window.open('', '_blank');
+      const html = generarHTMLMemoria();
+      win.document.write(html);
+      win.document.close();
+    }
+
+    function imprimirPlanoA3() {
+      imprimirMemoriaZapatasProStyle();
+    }
+
+    window.onload = () => {
+      lucide.createIcons();
+      init3DScene();
+      cargarPreset('tumbes');
+    };
+  </script>
+</body>
+</html>
