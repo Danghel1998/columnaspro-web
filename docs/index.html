@@ -241,7 +241,7 @@
             </div>
             <div class="space-y-2 text-xs">
               <div class="grid grid-cols-4 gap-1 font-bold text-[10px] text-slate-500 border-b pb-1">
-                <span>CASO</span><span>P (Ton)</span><span>M2 (Ton-m)</span><span>M3 (Ton-m)</span>
+                <span>CASO</span><span>P (Ton, + compr.)</span><span>M2 (Ton-m)</span><span>M3 (Ton-m)</span>
               </div>
               <div class="grid grid-cols-4 gap-1 items-center">
                 <span class="font-bold text-slate-700">CM</span>
@@ -588,7 +588,7 @@
               <table class="table-combos">
                 <thead>
                   <tr>
-                    <th>COMBINACIÓN</th><th>P (Ton)</th><th>M2 (Ton-m)</th><th>M3 (Ton-m)</th><th>Mu Res (Ton-m)</th><th>ESTADO</th>
+                    <th>COMBINACIÓN</th><th>Pu (Ton, + compr.)</th><th>Mu2 (Ton-m)</th><th>Mu3 (Ton-m)</th><th>ФMn2 (Ton-m)</th><th>ФMn3 (Ton-m)</th><th>RATIO</th><th>ESTADO</th>
                   </tr>
                 </thead>
                 <tbody id="tbody-combos">
@@ -708,6 +708,54 @@
       return { nombre: `${dbClean} cm`, db: dbClean, area: Math.PI * (dbClean / 2.0) ** 2 };
     }
 
+    // Ubicación real de las barras en la sección (x a lo largo de b, y a lo largo de h),
+    // medida a sus centros: d' = recubrimiento libre + Ø estribo + Ø barra/2.
+    function barrasSeccion(data, b, h, rec, dbEst) {
+      const modo = String(data.modo_armadura || 'uniforme');
+      const bars = [];
+      const push = (x, y, info) => bars.push({ x, y, area: info.area, db: info.db });
+      if (modo === 'combinado') {
+        const iE = getInfoVarilla(cleanFloat(data.db_esq, 1.91));
+        const iB = getInfoVarilla(cleanFloat(data.db_cara_b, 1.59));
+        const iH = getInfoVarilla(cleanFloat(data.db_cara_h, 1.59));
+        const nB = Math.max(0, Math.trunc(cleanFloat(data.n_cara_b, 2)));
+        const nH = Math.max(0, Math.trunc(cleanFloat(data.n_cara_h, 0)));
+        const dp = rec + dbEst + iE.db / 2.0;
+        const x0 = dp, x1 = b - dp, y0 = dp, y1 = h - dp;
+        push(x0, y0, iE); push(x1, y0, iE); push(x0, y1, iE); push(x1, y1, iE);
+        for (let i = 1; i <= nB; i++) { const x = x0 + i * (x1 - x0) / (nB + 1); push(x, y0, iB); push(x, y1, iB); }
+        for (let j = 1; j <= nH; j++) { const y = y0 + j * (y1 - y0) / (nH + 1); push(x0, y, iH); push(x1, y, iH); }
+      } else {
+        const iL = getInfoVarilla(cleanFloat(data.db_long, 1.59));
+        const n = Math.max(4, Math.trunc(cleanFloat(data.num_varillas, 8)));
+        const { nB, nH } = repartoUniforme(n, b, h);
+        const dp = rec + dbEst + iL.db / 2.0;
+        const x0 = dp, x1 = b - dp, y0 = dp, y1 = h - dp;
+        push(x0, y0, iL); push(x1, y0, iL); push(x0, y1, iL); push(x1, y1, iL);
+        for (let i = 1; i <= nB; i++) { const x = x0 + i * (x1 - x0) / (nB + 1); push(x, y0, iL); push(x, y1, iL); }
+        for (let j = 1; j <= nH; j++) { const y = y0 + j * (y1 - y0) / (nH + 1); push(x0, y, iL); push(x1, y, iL); }
+      }
+      return bars;
+    }
+
+    // Reparte n barras (4 esquinas + intermedias) entre las caras b y h según su longitud.
+    function repartoUniforme(n, b, h) {
+      const pares = Math.max(0, Math.floor((n - 4) / 2));
+      let nB = Math.round(pares * b / (b + h));
+      nB = Math.min(pares, Math.max(0, nB));
+      return { nB, nH: pares - nB };
+    }
+
+    // Agrupa barras en capas según su coordenada ('y' → flexión M3, 'x' → flexión M2).
+    function capasDesdeBarras(bars, eje) {
+      const mapa = new Map();
+      bars.forEach(br => {
+        const k = round(br[eje], 3);
+        mapa.set(k, (mapa.get(k) || 0) + br.area);
+      });
+      return [...mapa.entries()].sort((a, c) => a[0] - c[0]).map(([d_i, As_i]) => ({ d_i, As_i }));
+    }
+
     function calcularDiagramaInteraccion(b, h, fc, fy, rec, astTotal, capasIn) {
       const Es = 2000000.0;
       const ey = fy / Es;
@@ -721,9 +769,11 @@
         const stepY = (h - 2 * rec) / (nCapas - 1);
         for (let i = 0; i < nCapas; i++) capas.push({ d_i: rec + i * stepY, As_i: asPorCapa });
       }
+      const dMax = Math.max(...capas.map(c => c.d_i));   // capa de acero más traccionada
 
       const puntosNominales = [];
       const puntosDiseno = [];
+      const puntosDisenoSinTope = [];
 
       const po = 0.85 * fc * (b * h - astTotal) + fy * astTotal;
       const pnMax = 0.80 * po;
@@ -732,21 +782,21 @@
 
       const cValues = [h * 3.0, h * 1.5, h * 1.0];
       let cCurr = h * 0.95;
-      while (cCurr >= 0.05 * h) { cValues.push(cCurr); cCurr -= 0.04 * h; }
+      while (cCurr >= 0.02 * h) { cValues.push(cCurr); cCurr -= 0.02 * h; }
 
-      const d0 = h - rec;
       for (const c of cValues) {
         const a = beta1 * c;
         const aEff = Math.min(a, h);
         const Cc = 0.85 * fc * b * aEff;
         const Mc = Cc * (h / 2.0 - aEff / 2.0);
 
-        let PnSum = Cc, MnSum = Mc, et = 0.0;
+        let PnSum = Cc, MnSum = Mc;
+        const et = 0.003 * (dMax - c) / c;   // deformación (tracción +) en la capa extrema
         for (const capa of capas) {
           const di = capa.d_i, asi = capa.As_i;
           const esi = 0.003 * (c - di) / c;
-          if (di === d0) et = -esi;
-          const fsi = Math.max(-fy, Math.min(fy, esi * Es));
+          let fsi = Math.max(-fy, Math.min(fy, esi * Es));
+          if (di < aEff && fsi > 0) fsi -= 0.85 * fc;   // concreto desplazado por la barra
           const Fi = asi * fsi;
           PnSum += Fi;
           MnSum += Fi * (h / 2.0 - di);
@@ -762,33 +812,97 @@
         const PnPhiTon = Math.min(phi * PnTon, phiPnMax);
         const MnPhiTonM = phi * MnTonM;
 
-        if (PnTon >= -fy * astTotal / 1000.0) {
-          puntosNominales.push({ M: round(Math.abs(MnTonM), 3), P: round(PnTon, 2) });
-          puntosDiseno.push({ M: round(Math.abs(MnPhiTonM), 3), P: round(PnPhiTon, 2) });
-        }
+        puntosNominales.push({ M: round(Math.abs(MnTonM), 3), P: round(PnTon, 2) });
+        puntosDiseno.push({ M: round(Math.abs(MnPhiTonM), 3), P: round(PnPhiTon, 2) });
+        puntosDisenoSinTope.push({ M: Math.abs(MnPhiTonM), P: phi * PnTon });
       }
 
       const ptTon = -fy * astTotal / 1000.0;
       puntosNominales.push({ M: 0.0, P: round(ptTon, 2) });
       puntosDiseno.push({ M: 0.0, P: round(0.90 * ptTon, 2) });
+      puntosDisenoSinTope.push({ M: 0.0, P: 0.90 * ptTon });
 
-      const d = h - rec;
+      const d = dMax;
       const cb = (6000.0 / (6000.0 + fy)) * d;
       const ab = beta1 * cb;
-      const ccB = 0.85 * fc * b * Math.min(ab, h);
-      const pbTon = ccB / 1000.0;
-      const mbTonM = (ccB * (h / 2.0 - Math.min(ab, h) / 2.0)) / 100000.0;
+      let pbKg = 0.85 * fc * b * Math.min(ab, h), mbKgCm = pbKg * (h / 2.0 - Math.min(ab, h) / 2.0);
+      for (const capa of capas) {
+        const esi = 0.003 * (cb - capa.d_i) / cb;
+        let fsi = Math.max(-fy, Math.min(fy, esi * Es));
+        if (capa.d_i < ab && fsi > 0) fsi -= 0.85 * fc;
+        pbKg += capa.As_i * fsi;
+        mbKgCm += capa.As_i * fsi * (h / 2.0 - capa.d_i);
+      }
 
       return {
         nominales: puntosNominales,
         diseno: puntosDiseno,
+        diseno_sin_tope: puntosDisenoSinTope,
         phi_pn_max: round(phiPnMax, 2),
+        phi_po: round(phiComp * po / 1000.0, 2),
+        phi_pnt: round(0.90 * ptTon, 2),
+        d_cm: round(d, 2),
         cb: round(cb, 2),
         ab: round(ab, 2),
-        pb: round(pbTon, 2),
-        mb: round(mbTonM, 2),
+        pb: round(pbKg / 1000.0, 2),
+        mb: round(Math.abs(mbKgCm) / 100000.0, 2),
         beta1: round(beta1, 2)
       };
+    }
+
+    // φMn resistente de la curva de diseño para una carga axial Pu (interpolación lineal).
+    function phiMnParaPu(puntos, pu) {
+      for (let i = 0; i < puntos.length - 1; i++) {
+        const p1 = puntos[i], p2 = puntos[i + 1];
+        const hi = Math.max(p1.P, p2.P), lo = Math.min(p1.P, p2.P);
+        if (pu <= hi && pu >= lo) {
+          if (Math.abs(p1.P - p2.P) < 1e-9) return Math.max(p1.M, p2.M);
+          return p1.M + (p2.M - p1.M) * (pu - p1.P) / (p2.P - p1.P);
+        }
+      }
+      return 0.0;
+    }
+
+    // φPn resistente sobre la recta de excentricidad e = M/P (para Bresler).
+    function phiPnParaExcentricidad(puntos, e) {
+      if (e <= 1e-9) return puntos[0].P;
+      let prev = null;
+      for (const pt of puntos) {
+        if (pt.P <= 0) break;
+        const f = pt.M - e * pt.P;          // < 0 dentro de la recta, > 0 pasado
+        if (prev && prev.f <= 0 && f >= 0) {
+          const t = prev.f / (prev.f - f);
+          return prev.P + t * (pt.P - prev.P);
+        }
+        prev = { P: pt.P, f };
+      }
+      return 0.0;
+    }
+
+    // Verificación biaxial: Bresler (carga recíproca) si Pu ≥ 0.1 f'c Ag;
+    // contorno de carga lineal Mux/φMnx + Muy/φMny ≤ 1 si Pu < 0.1 f'c Ag.
+    function verificarFlexocompresion(c, diag3, diag2, fc, ag) {
+      const pu = c.P, m3 = Math.abs(c.M3), m2 = Math.abs(c.M2);
+      const phiMn3 = phiMnParaPu(diag3.diseno, Math.min(pu, diag3.phi_pn_max));
+      const phiMn2 = phiMnParaPu(diag2.diseno, Math.min(pu, diag2.phi_pn_max));
+      let ratio, metodo;
+      if (pu > diag3.phi_pn_max) {
+        ratio = pu / diag3.phi_pn_max; metodo = 'Pu > ФPn,max';
+      } else if (pu < diag3.phi_pnt) {
+        ratio = pu / diag3.phi_pnt; metodo = 'Tracción > ФPnt';
+      } else if (pu >= 0.1 * fc * ag / 1000.0 && pu > 0) {
+        const p3 = phiPnParaExcentricidad(diag3.diseno_sin_tope, m3 / pu);
+        const p2 = phiPnParaExcentricidad(diag2.diseno_sin_tope, m2 / pu);
+        const p0 = diag3.phi_po;
+        const inv = (p3 > 0 && p2 > 0) ? (1 / p3 + 1 / p2 - 1 / p0) : 0;
+        const pni = inv > 0 ? Math.min(1 / inv, diag3.phi_pn_max) : 0;
+        ratio = pni > 0 ? pu / pni : 99; metodo = 'Bresler';
+      } else {
+        ratio = (phiMn3 > 0 ? m3 / phiMn3 : (m3 > 0 ? 99 : 0)) + (phiMn2 > 0 ? m2 / phiMn2 : (m2 > 0 ? 99 : 0));
+        metodo = 'Contorno lineal';
+      }
+      if (pu > 0) ratio = Math.max(ratio, pu / diag3.phi_pn_max);   // nunca menor que la verificación axial pura
+      return { phi_mn3: round(phiMn3, 2), phi_mn2: round(phiMn2, 2), ratio: round(ratio, 3), metodo, cumple: ratio <= 1.0 };
     }
 
     function generarCombinacionesE060(cm, cv, sisX, sisY) {
@@ -830,10 +944,12 @@
       const ag = b * h;
 
       const vuTon = (p.vuActuanteTon !== null && p.vuActuanteTon !== undefined) ? cleanFloat(p.vuActuanteTon, 12.50) : 12.50;
-      const puTon = Math.max(0.0, cleanFloat(p.puMinTon, 10.0));
+      // Se usa la carga axial mínima (la más desfavorable para Vc). Con tracción, E.060 11.3.2.3.
+      const puTon = cleanFloat(p.puMinTon, 10.0);
 
       const nuKg = puTon * 1000.0;
-      const vcKg = 0.53 * Math.sqrt(fc) * b * d * (1.0 + nuKg / (140.0 * ag));
+      const factorN = nuKg >= 0 ? (1.0 + nuKg / (140.0 * ag)) : Math.max(0.0, 1.0 + nuKg / (35.0 * ag));
+      const vcKg = 0.53 * Math.sqrt(fc) * b * d * factorN;
       const vcTon = vcKg / 1000.0;
 
       const phiCorte = 0.85;
@@ -869,7 +985,10 @@
       const sf2 = Math.ceil(48 * dbEstCm);
       const sf3 = Math.ceil(ladoMenorCm);
       const sFueraGeom = Math.min(sf1, sf2, sf3);
-      const sFueraFinalCm = Math.min(15, Math.trunc(sFueraGeom));
+      // Fuera de Lo también rige el cortante: s ≤ s_corte y s ≤ d/2 (d/4 si Vs > 1.1√f'c·b·d), E.060 11.5.5.
+      const vsLimTon = (1.1 * Math.sqrt(fc) * b * d) / 1000.0;
+      const sMaxCorte = Math.floor(vsTon > vsLimTon ? d / 4.0 : d / 2.0);
+      const sFueraFinalCm = Math.max(5, Math.min(15, Math.trunc(sFueraGeom), Math.floor(sCorteCm), sMaxCorte));
 
       const phiVnTon = phiCorte * (vcTon + vsTon);
       const cumpleCorte = (phiVnTon >= vuTon) && cumpleSeccion;
@@ -895,7 +1014,7 @@
         so_cm: soFinalCm,
         so_detalles: { s_8db: s1, s_b2: s2, s_100mm: 10, s_corte: round(sCorteCm, 1) },
         s_fuera_cm: sFueraFinalCm,
-        s_fuera_detalles: { sf_16db: sf1, sf_48db: sf2, sf_b: sf3 },
+        s_fuera_detalles: { sf_16db: sf1, sf_48db: sf2, sf_b: sf3, s_corte: round(sCorteCm, 1), s_d2: sMaxCorte },
         num_estribos_conf: numEstConf,
         n_ramas: nRamas,
         db_est_cm: dbEstCm,
@@ -928,7 +1047,8 @@
         const ag = b * h;
         const modoArmadura = String(data.modo_armadura || 'uniforme');
 
-        let numVarillas, dbLongCm, asBarras, rotuloAcero, capas, capasM2;
+        let numVarillas, dbLongCm, asBarras, rotuloAcero;
+        const dbEstCm = cleanFloat(data.db_est, 0.95);
 
         if (modoArmadura === 'combinado') {
           const dbEsq = cleanFloat(data.db_esq, 1.91);
@@ -953,57 +1073,38 @@
           if (nCaraH > 0) partesRotulo.push(`${2 * nCaraH} Ø ${infoH.nombre} (Cara h)`);
           rotuloAcero = partesRotulo.join(" + ");
 
-          const asTop = 2 * infoEsq.area + nCaraB * infoB.area;
-          const asBot = asTop;
-
-          capas = [{ d_i: rec, As_i: asTop }];
-          if (nCaraH > 0) {
-            const step = (h - 2 * rec) / (nCaraH + 1);
-            for (let k = 1; k <= nCaraH; k++) capas.push({ d_i: rec + k * step, As_i: 2 * infoH.area });
-          }
-          capas.push({ d_i: h - rec, As_i: asBot });
-
-          const asIzq = 2 * infoEsq.area + nCaraH * infoH.area;
-          const asDer = asIzq;
-          capasM2 = [{ d_i: rec, As_i: asIzq }];
-          if (nCaraB > 0) {
-            const stepB = (b - 2 * rec) / (nCaraB + 1);
-            for (let k = 1; k <= nCaraB; k++) capasM2.push({ d_i: rec + k * stepB, As_i: 2 * infoB.area });
-          }
-          capasM2.push({ d_i: b - rec, As_i: asDer });
         } else {
           numVarillas = Math.trunc(cleanFloat(data.num_varillas, 8));
+          if (numVarillas < 4) return { exito: false, error: "Se requieren al menos 4 varillas longitudinales." };
+          if (numVarillas % 2 !== 0) numVarillas -= 1;   // distribución simétrica: número par de barras
           dbLongCm = cleanFloat(data.db_long, 1.59);
           const infoLong = getInfoVarilla(dbLongCm);
           asBarras = numVarillas * infoLong.area;
           rotuloAcero = `${numVarillas} Ø ${infoLong.nombre}`;
 
-          capas = [];
-          const nCapas = 4;
-          const asPorCapa = asBarras / nCapas;
-          const stepY = (h - 2 * rec) / (nCapas - 1);
-          for (let i = 0; i < nCapas; i++) capas.push({ d_i: rec + i * stepY, As_i: asPorCapa });
-
-          capasM2 = [];
-          const stepX = (b - 2 * rec) / (nCapas - 1);
-          for (let i = 0; i < nCapas; i++) capasM2.push({ d_i: rec + i * stepX, As_i: asPorCapa });
         }
 
         const astMin = 0.01 * ag;
         const astMax = 0.06 * ag;
-        const astUsado = Math.max(asBarras, astMin);
+        // Se diseña con el acero REAL colocado; la cuantía se verifica aparte (E.060 21.6.3.1 / 10.9.1).
+        const astUsado = asBarras;
+        const cumpleCuantia = asBarras >= astMin - 1e-6 && asBarras <= astMax + 1e-6;
+
+        // Capas tomadas de la posición real de las barras (d' = rec + Ø estribo + Ø barra / 2).
+        const barras = barrasSeccion(data, b, h, rec, dbEstCm);
+        const capas = capasDesdeBarras(barras, 'y');     // flexión M3 (peralte h)
+        const capasM2 = capasDesdeBarras(barras, 'x');   // flexión M2 (peralte b)
 
         const diagrama = calcularDiagramaInteraccion(b, h, fc, fy, rec, astUsado, capas);
         const diagramaM2 = calcularDiagramaInteraccion(h, b, fc, fy, rec, astUsado, capasM2);
 
         let todosCumplen = true;
         const combosEvaluados = combosE060.map(c => {
-          const cumple = c.P <= diagrama.phi_pn_max;
-          if (!cumple) todosCumplen = false;
-          return { ...c, cumple };
+          const v = verificarFlexocompresion(c, diagrama, diagramaM2, fc, ag);
+          if (!v.cumple) todosCumplen = false;
+          return { ...c, ...v };
         });
 
-        const dbEstCm = cleanFloat(data.db_est, 0.95);
         const nRamas = Math.trunc(cleanFloat(data.n_ramas, 2));
         const vuActuanteTon = cleanFloat(data.vu_actuante, 12.50);
         const puMinTon = combosE060.length ? Math.min(...combosE060.map(c => c.P)) : 10.0;
@@ -1022,16 +1123,17 @@
             db_cm: dbLongCm,
             rotulo_acero: rotuloAcero,
             ast_calculado: round(astUsado, 2),
-            ast_min_1pct: round(astMin, 2)
+            ast_min_1pct: round(astMin, 2),
+            cumple_cuantia: cumpleCuantia
           },
           estribos: estribosInfo,
           combos_e060: combosEvaluados,
           pasos: [
             `1. Geometría y Área de Sección: a = ${b} cm, b = ${h} cm → Ag = ${ag.toFixed(0)} cm²`,
-            `2. Verificación de Acero Mínimo (1% Ag): Ast_min = ${astMin.toFixed(2)} cm²`,
+            `2. Verificación de Cuantía (1% ≤ ρ ≤ 6%): Ast_min = ${astMin.toFixed(2)} cm², Ast_max = ${astMax.toFixed(2)} cm² → ${cumpleCuantia ? 'CUMPLE' : 'NO CUMPLE'}`,
             `3. Refuerzo Adopado: ${rotuloAcero} (Ast = ${astUsado.toFixed(2)} cm², ρ = ${((astUsado / ag) * 100).toFixed(2)}% Ag)`,
             `4. Generación de las 9 Combinaciones de Carga E.060 (1.4CM+1.7CV, 1.25(CM+CV)±SIS, 0.9CM±SIS)`,
-            `5. Diagrama de Interacción P-M evaluado en la envolvente ØPn-ØMn`,
+            `5. Flexocompresión biaxial (Bresler si Pu ≥ 0.1f'c·Ag; contorno lineal si no): ratio máx = ${Math.max(...combosEvaluados.map(c => c.ratio)).toFixed(2)} → ${todosCumplen ? 'CUMPLE' : 'NO CUMPLE'}`,
             `6. Acero Transversal en Confinamiento (Lo = ${estribosInfo.lo_m} m): s_conf = ${estribosInfo.so_cm} cm`,
             `7. Distribución Final de Estribos: ${estribosInfo.rotulo_estribos}`
           ]
@@ -1047,6 +1149,8 @@
           combos_e060: combosEvaluados,
           estribos: estribosInfo,
           cumple_flexocompresion: todosCumplen,
+          cumple_cuantia: cumpleCuantia,
+          ratio_max: round(Math.max(...combosEvaluados.map(c => c.ratio)), 3),
           diagrama: diagrama,
           diagrama_m2: diagramaM2,
           rotulo_acero: rotuloAcero,
@@ -1193,24 +1297,18 @@
       } else {
         const nvar = inp.num_varillas || 8;
         const dbLong = inp.db_long || 1.59;
+        const { nB, nH } = repartoUniforme(nvar, b, h);
         list.push({ x: 0, y: 0, db: dbLong, tipo: 'uni' });
         list.push({ x: stW, y: 0, db: dbLong, tipo: 'uni' });
         list.push({ x: 0, y: stH, db: dbLong, tipo: 'uni' });
         list.push({ x: stW, y: stH, db: dbLong, tipo: 'uni' });
-
-        if (nvar >= 6) {
-          list.push({ x: stW / 2, y: 0, db: dbLong, tipo: 'uni' });
-          list.push({ x: stW / 2, y: stH, db: dbLong, tipo: 'uni' });
+        for (let i = 1; i <= nB; i++) {
+          list.push({ x: i * stW / (nB + 1), y: 0, db: dbLong, tipo: 'uni' });
+          list.push({ x: i * stW / (nB + 1), y: stH, db: dbLong, tipo: 'uni' });
         }
-        if (nvar >= 8) {
-          list.push({ x: 0, y: stH / 2, db: dbLong, tipo: 'uni' });
-          list.push({ x: stW, y: stH / 2, db: dbLong, tipo: 'uni' });
-        }
-        if (nvar >= 10) {
-          list.push({ x: stW / 3, y: 0, db: dbLong, tipo: 'uni' });
-          list.push({ x: (2 * stW) / 3, y: 0, db: dbLong, tipo: 'uni' });
-          list.push({ x: stW / 3, y: stH, db: dbLong, tipo: 'uni' });
-          list.push({ x: (2 * stW) / 3, y: stH, db: dbLong, tipo: 'uni' });
+        for (let j = 1; j <= nH; j++) {
+          list.push({ x: 0, y: j * stH / (nH + 1), db: dbLong, tipo: 'uni' });
+          list.push({ x: stW, y: j * stH / (nH + 1), db: dbLong, tipo: 'uni' });
         }
       }
       return list;
@@ -1268,8 +1366,10 @@
               <td class="${c.P < 0 ? 'text-red-600 font-bold' : ''}">${c.P}</td>
               <td>${c.M2}</td>
               <td>${c.M3}</td>
-              <td class="font-bold text-blue-600">${c.M_res}</td>
-              <td><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">CUMPLE</span></td>
+              <td>${c.phi_mn2}</td>
+              <td>${c.phi_mn3}</td>
+              <td class="font-bold ${c.cumple ? 'text-blue-600' : 'text-red-600'}" title="${c.metodo}">${c.ratio.toFixed(2)}</td>
+              <td><span class="px-2 py-0.5 rounded text-[10px] font-bold ${c.cumple ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">${c.cumple ? 'CUMPLE' : 'NO CUMPLE'}</span></td>
             </tr>
           `).join('');
 
@@ -1304,6 +1404,7 @@
             <div>* 16 db long = ${est.s_fuera_detalles.sf_16db} cm</div>
             <div>* 48 db estribo = ${est.s_fuera_detalles.sf_48db} cm</div>
             <div>* Lado menor b = ${est.s_fuera_detalles.sf_b} cm</div>
+            <div>* Por cortante: s_corte = ${est.s_fuera_detalles.s_corte} cm; d/2 (o d/4) = ${est.s_fuera_detalles.s_d2} cm; máx. 15 cm</div>
             <div class="bg-yellow-200 text-yellow-900 font-bold p-1 rounded">=> El menor = ${est.s_fuera_cm} cm</div>
 
             <div class="bg-emerald-600 text-white font-bold p-2.5 rounded-lg text-sm mt-3 text-center">
@@ -1340,8 +1441,16 @@
               <div>• Momento Balanceado (Mb): ${diag.mb || 18.20} Ton-m</div>
             </div>
 
-            <div class="bg-emerald-600 text-white font-bold p-3 rounded-lg text-sm text-center">
-              ✓ FLEXOCOMPRESIÓN BIAXIAL EVALUADA CON ÉXITO EN LAS 9 COMBINACIONES E.060
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border space-y-2">
+              <div class="font-bold text-blue-700 dark:text-blue-400 border-b pb-1">4. Verificación Biaxial por Combinación:</div>
+              <div>• Si Pu ≥ 0.1·f'c·Ag: Bresler, 1/ФPni = 1/ФPnx + 1/ФPny − 1/ФPo (ФPo = ${diag.phi_po} Ton) → ratio = Pu/ФPni</div>
+              <div>• Si Pu &lt; 0.1·f'c·Ag: Mu2/ФMn2 + Mu3/ФMn3 ≤ 1 (contorno lineal, conservador)</div>
+              <div>• Cuantía: ρ = ${((result.ast_usado / result.ag) * 100).toFixed(2)}% → ${result.cumple_cuantia ? '✓ entre 1% y 6%' : '✗ fuera del rango 1%–6% (E.060 21.6.3.1)'}</div>
+              <div>• Ratio máximo = <strong>${result.ratio_max.toFixed(2)}</strong></div>
+            </div>
+
+            <div class="${result.cumple_flexocompresion && result.cumple_cuantia ? 'bg-emerald-600' : 'bg-red-600'} text-white font-bold p-3 rounded-lg text-sm text-center">
+              ${result.cumple_flexocompresion && result.cumple_cuantia ? '✓ CUMPLE A FLEXOCOMPRESIÓN BIAXIAL EN LAS 9 COMBINACIONES E.060' : (!result.cumple_flexocompresion ? `✗ NO CUMPLE A FLEXOCOMPRESIÓN (ratio máx = ${result.ratio_max.toFixed(2)}) — AUMENTAR ACERO O SECCIÓN` : '✗ NO CUMPLE LA CUANTÍA MÍNIMA/MÁXIMA')}
             </div>
           `;
 
@@ -1360,12 +1469,16 @@
           actualizarMemoriaLive();
 
           const badgeTop = document.getElementById('badge-status-top');
-          if (est.cumple_corte) {
+          const fallas = [];
+          if (!result.cumple_flexocompresion) fallas.push(`FLEXOCOMPRESIÓN (ratio ${result.ratio_max.toFixed(2)})`);
+          if (!result.cumple_cuantia) fallas.push('CUANTÍA');
+          if (!est.cumple_corte) fallas.push('CORTANTE');
+          if (fallas.length === 0) {
             badgeTop.className = "text-xs px-3 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
-            badgeTop.innerText = "✓ DENTRO DE ENVOLVENTE (OK)";
+            badgeTop.innerText = `✓ CUMPLE (ratio máx ${result.ratio_max.toFixed(2)})`;
           } else {
             badgeTop.className = "text-xs px-3 py-1 rounded-full font-bold bg-red-100 text-red-800 border border-red-300";
-            badgeTop.innerText = "✗ NO CUMPLE A CORTANTE (ΦVn < Vu)";
+            badgeTop.innerText = "✗ NO CUMPLE: " + fallas.join(' + ');
           }
         }
       } catch (e) {}
@@ -1539,7 +1652,8 @@
                   <th>P (Ton)</th>
                   <th>M2 (Ton-m)</th>
                   <th>M3 (Ton-m)</th>
-                  <th>Mu Res (Ton-m)</th>
+                  <th>ФMn2 / ФMn3</th>
+                  <th>Ratio (método)</th>
                   <th>Estado</th>
                 </tr>
               </thead>
@@ -1550,8 +1664,9 @@
                     <td>${c.P}</td>
                     <td>${c.M2}</td>
                     <td>${c.M3}</td>
-                    <td class="font-bold text-blue-700">${c.M_res}</td>
-                    <td><span class="badge-cumple">CUMPLE</span></td>
+                    <td>${c.phi_mn2} / ${c.phi_mn3}</td>
+                    <td class="font-bold ${c.cumple ? 'text-blue-700' : 'text-red-700'}">${c.ratio.toFixed(2)} (${c.metodo})</td>
+                    <td><span class="badge-cumple" style="${c.cumple ? '' : 'background:#fee2e2;color:#b91c1c;border-color:#fca5a5'}">${c.cumple ? 'CUMPLE' : 'NO CUMPLE'}</span></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -1583,7 +1698,7 @@
           <div class="mb-3">
             <h4 class="font-bold text-slate-800 mb-1">3°) Condición Balanceada ($P_b, M_b$) y Compatibilidad de Deformaciones (Art. 10.3.2)</h4>
             <div class="formula-card">
-              <p>• Eje neutro balanceado: cb = [ 6000 / (6000 + fy) ] × d = [ 6000 / 10200 ] × ${(inp.h ? inp.h-4 : 56).toFixed(1)} cm = ${diag.cb || 32.94} cm</p>
+              <p>• Eje neutro balanceado: cb = [ 6000 / (6000 + fy) ] × d = [ 6000 / ${6000 + fy} ] × ${diag.d_cm} cm = ${diag.cb || 32.94} cm</p>
               <p>• Bloque de compresiones equivalente: ab = β1 × cb = 0.85 × ${diag.cb || 32.94} cm = ${diag.ab || 28.00} cm</p>
               <p class="font-bold text-blue-900 mt-1">=> Carga Axial Balanceada Pb = ${diag.pb || 98.40} Ton | Momento Balanceado Mb = ${diag.mb || 18.20} Ton-m</p>
             </div>
